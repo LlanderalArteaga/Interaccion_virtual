@@ -5,10 +5,10 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="theme-color" content="#101820">
-	<meta name="description" content="Práctica inmersiva de manipulación y ensamblaje 3D con seguimiento de manos en Meta Quest 3.">
-	<meta property="og:title" content="Laboratorio virtual de ensamblaje 3D">
-	<meta property="og:description" content="Selecciona cinco piezas con una pinza y colócalas en sus destinos dentro de una sesión de realidad virtual.">
-	<title>Laboratorio virtual de ensamblaje 3D · WebXR</title>
+	<meta name="description" content="Práctica inmersiva de clasificación física 3D con seguimiento de manos en Meta Quest 3.">
+	<meta property="og:title" content="3.2 Interacción virtual">
+	<meta property="og:description" content="Clasifica veinte figuras geométricas en cuatro recipientes abiertos usando manos reales y física de cuerpos rígidos.">
+	<title>3.2 Interacción virtual · WebXR</title>
 	<link rel="icon" type="image/svg+xml" href="./assets/icons/favicon.svg">
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.9/dist/css/bootstrap.min.css" integrity="sha384-yEPZ7jP9S0QKiUQ0m3jjsO4ProIW7wvR9gXkI7JOGa2XVsw53Yke2bsdkBbjmmiX" crossorigin="anonymous">
 	<link rel="stylesheet" href="./assets/css/site.css">
@@ -16,7 +16,8 @@
 		{
 			"imports": {
 				"three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
-				"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+				"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/",
+				"cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
 			}
 		}
 	</script>
@@ -69,8 +70,8 @@
 			<div class="row align-items-center g-5">
 				<div class="col-lg-6 hero-copy">
 					<p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> WEBXR · SEGUIMIENTO DE MANOS · META QUEST 3</p>
-					<h1>Laboratorio virtual<br><span>de ensamblaje 3D</span></h1>
-					<p class="hero-lede">Una práctica de manipulación espacial. Apunta con el rayo de una mano, haz pinza para tomar una pieza y colócala en su destino correspondiente.</p>
+					<h1>3.2 Interacción<br><span>virtual</span></h1>
+					<p class="hero-lede">Clasifica veinte figuras en cuatro recipientes abiertos. Toma cada pieza con una pinza y observa cómo responde a la gravedad y a las colisiones.</p>
 					<div class="entry-actions">
 						<div id="webxr-entry-slot" aria-label="Entrada a realidad virtual inmersiva"></div>
 						<p id="compatibility-status" class="small-status" role="status" aria-live="polite">Comprobando compatibilidad con realidad virtual…</p>
@@ -81,7 +82,7 @@
 					<div class="preview-card">
 						<div class="preview-heading"><span>VISTA PREVIA</span><span class="preview-tag">SOLO ESCRITORIO</span></div>
 						<div id="preview-stage" class="preview-stage" aria-label="Vista previa no interactiva del laboratorio"></div>
-						<p class="preview-caption">El reto se realiza en una sesión VR inmersiva. Esta vista previa sirve para conocer la escena; no verifica el seguimiento de manos.</p>
+						<p class="preview-caption">Previsualización de escritorio para inspeccionar la escena y la física. No comprueba el seguimiento real de manos.</p>
 					</div>
 				</div>
 			</div>
@@ -92,24 +93,18 @@
 				<div class="col-lg-5">
 					<div class="info-card h-100">
 						<p class="section-kicker">EL RETO</p>
-						<h2>Cinco piezas.<br>Cinco ajustes precisos.</h2>
-						<p>Cada pieza tiene un único destino. La colocación se valida al soltar: si coincide, encaja y queda bloqueada; si no, puedes volver a intentarlo.</p>
-						<div class="progress-example" aria-label="El progreso comienza en cero de cinco"><span>ENSAMBLADAS</span><strong>0 <i>/</i> 5</strong></div>
+						<h2>Veinte objetos.<br>Cuatro categorías.</h2>
+						<p>Hay cinco ejemplares de cada figura repartidos entre cuatro mesas. Clasifica cada objeto en su recipiente; el depósito correcto se confirmará cuando quede dentro y en reposo.</p>
+						<div class="progress-example" aria-label="El progreso comienza en cero de veinte"><span>CLASIFICADOS</span><strong>0 <i>/</i> 20</strong></div>
 					</div>
 				</div>
 				<div class="col-lg-7">
 					<div class="info-card objectives-card h-100">
 						<div class="d-flex justify-content-between align-items-start gap-3">
 							<div><p class="section-kicker">CONJUNTO DE PIEZAS</p><h2>Reconoce cada forma</h2></div>
-							<span class="objective-count">01—05</span>
+							<span class="objective-count">4 CLASES · 5 DE CADA UNA</span>
 						</div>
-						<ul class="objective-list">
-							<li><span class="shape-chip chip-cube" aria-hidden="true"></span><span>Cubo</span><span class="shape-id">A</span></li>
-							<li><span class="shape-chip chip-sphere" aria-hidden="true"></span><span>Esfera</span><span class="shape-id">B</span></li>
-							<li><span class="shape-chip chip-cone" aria-hidden="true"></span><span>Cono</span><span class="shape-id">C</span></li>
-							<li><span class="shape-chip chip-cylinder" aria-hidden="true"></span><span>Cilindro</span><span class="shape-id">D</span></li>
-							<li><span class="shape-chip chip-prism" aria-hidden="true"></span><span>Prisma triangular</span><span class="shape-id">E</span></li>
-						</ul>
+						<ul class="objective-list"><li><span class="shape-chip chip-cube" aria-hidden="true"></span><span>Cubo</span><span class="shape-id">5</span></li><li><span class="shape-chip chip-sphere" aria-hidden="true"></span><span>Esfera</span><span class="shape-id">5</span></li><li><span class="shape-chip chip-cone" aria-hidden="true"></span><span>Pirámide cuadrada</span><span class="shape-id">5</span></li><li><span class="shape-chip chip-hex" aria-hidden="true"></span><span>Prisma hexagonal</span><span class="shape-id">5</span></li></ul>
 					</div>
 				</div>
 			</div>
@@ -119,7 +114,7 @@
 			<div class="row g-4 align-items-stretch">
 				<div class="col-md-4"><div class="requirement-item"><span class="requirement-index">01</span><div><h3>Entra a VR</h3><p>Abre la práctica con Meta Quest Browser y permite iniciar la sesión inmersiva.</p></div></div></div>
 				<div class="col-md-4"><div class="requirement-item"><span class="requirement-index">02</span><div><h3>Muestra tus manos</h3><p>Activa el seguimiento de manos en Quest. La actividad no usa controles físicos.</p></div></div></div>
-				<div class="col-md-4"><div class="requirement-item"><span class="requirement-index">03</span><div><h3>Haz pinza y coloca</h3><p>Apunta a una pieza, mantén la pinza para moverla y suéltala cerca de su destino.</p></div></div></div>
+				<div class="col-md-4"><div class="requirement-item"><span class="requirement-index">03</span><div><h3>Haz pinza y clasifica</h3><p>Apunta a una figura, sostenla con la pinza y suéltala dentro del recipiente de su categoría.</p></div></div></div>
 			</div>
 		</section>
 
@@ -133,8 +128,8 @@
 
 	<footer class="site-footer">
 		<div class="container d-flex flex-column flex-md-row justify-content-between gap-2 py-4">
-			<p class="mb-0">LABORATORIO VIRTUAL DE ENSAMBLAJE <span>·</span> PRÁCTICA UNIVERSITARIA</p>
-			<p class="mb-0">Desarrollado para Interacción Virtual · Three.js, WebXR y Bootstrap 5</p>
+			<p class="mb-0">3.2 INTERACCIÓN VIRTUAL <span>·</span> PRÁCTICA UNIVERSITARIA</p>
+			<p class="mb-0">Autor: Axel Llanderal Arteaga · Three.js, WebXR, cannon-es y Bootstrap 5</p>
 		</div>
 	</footer>
 	<div id="loading-state" class="loading-state" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>Cargando la vista previa 3D…</span></div>

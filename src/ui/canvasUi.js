@@ -52,13 +52,13 @@ export function drawHud(canvas, state, now = performance.now()) {
 	context.textAlign = 'left';
 	context.fillStyle = '#a9f0d1';
 	context.font = '700 34px system-ui, sans-serif';
-	context.fillText('LABORATORIO DE ENSAMBLAJE', 54, 82);
+	context.fillText('3.2 INTERACCIÓN VIRTUAL', 54, 82);
 	context.fillStyle = '#f2f1eb';
 	context.font = '700 58px system-ui, sans-serif';
-	context.fillText(`${getProgress(state)} / 5`, 54, 190);
+	context.fillText(`${getProgress(state)} / 20`, 54, 190);
 	context.fillStyle = '#aab9bc';
 	context.font = '500 28px system-ui, sans-serif';
-	context.fillText('PIEZAS ENSAMBLADAS', 54, 236);
+	context.fillText('FIGURAS CLASIFICADAS', 54, 236);
 	context.textAlign = 'right';
 	context.fillStyle = '#f2f1eb';
 	context.font = '700 46px ui-monospace, monospace';
@@ -70,14 +70,14 @@ export function drawHud(canvas, state, now = performance.now()) {
 	context.textAlign = 'left';
 	context.fillStyle = '#d9e4df';
 	context.font = '600 28px system-ui, sans-serif';
-	context.fillText('Apunta con el rayo de una mano.', 54, 345);
-	context.fillText('Haz pinza para tomar y mover una pieza.', 54, 390);
-	context.fillText('Suelta en el destino con la misma etiqueta.', 54, 435);
+	context.fillText('Apunta a una figura con el rayo.', 54, 345);
+	context.fillText('Haz pinza para tomarla y lanzarla.', 54, 390);
+	context.fillText('Clasifícala en el recipiente de su forma.', 54, 435);
 
 	const phaseLabel = state.phase === 'complete' ? 'COMPLETADO' : state.phase === 'active' ? 'EN CURSO' : 'PENDIENTE';
 	context.fillStyle = state.phase === 'complete' ? '#a9f0d1' : '#dce6e3';
 	context.font = '700 25px system-ui, sans-serif';
-	context.fillText(`ESTADO: ${phaseLabel}`, 54, 480);
+	context.fillText(`ESTADO: ${phaseLabel} · 4 MESAS · 4 RECIPIENTES`, 54, 480);
 
 	const leftTracked = state.hands.left;
 	const rightTracked = state.hands.right;

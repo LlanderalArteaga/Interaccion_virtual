@@ -1,48 +1,64 @@
 import * as THREE from 'three';
 import { createTextPlane } from '../ui/canvasUi.js';
+import {
+	CANNON,
+	createBoxBody,
+	createPyramidShape,
+	createPhysicsWorld,
+	createRoundPrismShape,
+	resetDynamicBody,
+	stepPhysics,
+	syncPhysicsMeshes
+} from '../physics/physicsWorld.js';
 
-export const TABLETOP_Y = 0.80;
-const PART_X = [-0.60, -0.30, 0, 0.30, 0.60];
-const COLORS = Object.freeze({ cube: 0xe7a36d, sphere: 0x74c8dc, cone: 0xc0a0f2, cylinder: 0xf0cf76, prism: 0xf08f9a });
-const PARTS = [
-	{ id: 'cube', name: 'CUBO', color: COLORS.cube, centerY: TABLETOP_Y + 0.08, geometry: () => new THREE.BoxGeometry(0.15, 0.15, 0.15), targetGeometry: () => new THREE.BoxGeometry(0.19, 0.025, 0.19) },
-	{ id: 'sphere', name: 'ESFERA', color: COLORS.sphere, centerY: TABLETOP_Y + 0.095, geometry: () => new THREE.SphereGeometry(0.09, 24, 16), targetGeometry: () => new THREE.TorusGeometry(0.105, 0.009, 6, 32) },
-	{ id: 'cone', name: 'CONO', color: COLORS.cone, centerY: TABLETOP_Y + 0.095, geometry: () => new THREE.ConeGeometry(0.09, 0.18, 24), targetGeometry: () => new THREE.CylinderGeometry(0.12, 0.12, 0.025, 3) },
-	{ id: 'cylinder', name: 'CILINDRO', color: COLORS.cylinder, centerY: TABLETOP_Y + 0.09, geometry: () => new THREE.CylinderGeometry(0.08, 0.08, 0.17, 24), targetGeometry: () => new THREE.TorusGeometry(0.10, 0.009, 6, 32) },
-	{ id: 'prism', name: 'PRISMA', color: COLORS.prism, centerY: TABLETOP_Y + 0.085, geometry: () => new THREE.CylinderGeometry(0.095, 0.095, 0.16, 3), targetGeometry: () => new THREE.CylinderGeometry(0.125, 0.125, 0.025, 3) }
-];
+export const TABLETOP_Y = 0.75;
+const TABLE_SIZE = 0.92;
+const OBJECT_MASS_KG = 0.18;
+const CATEGORY_SPECS = Object.freeze([
+	{ id: 'cube', name: 'CUBO', color: 0xe7a36d, geometry: () => new THREE.BoxGeometry(0.13, 0.13, 0.13), shape: () => new CANNON.Box(new CANNON.Vec3(0.065, 0.065, 0.065)), halfHeight: 0.065, radius: 0.092 },
+	{ id: 'sphere', name: 'ESFERA', color: 0x74c8dc, geometry: () => new THREE.SphereGeometry(0.071, 16, 12), shape: () => new CANNON.Sphere(0.071), halfHeight: 0.071, radius: 0.071 },
+	{ id: 'pyramid', name: 'PIRÁMIDE', color: 0xc0a0f2, geometry: () => new THREE.ConeGeometry(0.078, 0.15, 4), shape: () => createPyramidShape(0.078, 0.15), halfHeight: 0.075, radius: 0.078 },
+	{ id: 'hex-prism', name: 'PRISMA HEXAGONAL', color: 0xf0cf76, geometry: () => new THREE.CylinderGeometry(0.073, 0.073, 0.15, 6), shape: () => createRoundPrismShape(0.073, 0.15, 6), halfHeight: 0.075, radius: 0.073 }
+]);
+
+const STATIONS = Object.freeze([
+	{ id: 'north', x: 0, z: -1.12, rotation: 0 },
+	{ id: 'east', x: 1.12, z: 0, rotation: -Math.PI / 2 },
+	{ id: 'south', x: 0, z: 1.12, rotation: Math.PI },
+	{ id: 'west', x: -1.12, z: 0, rotation: Math.PI / 2 }
+]);
+
+const OBJECT_SLOTS = Object.freeze([
+	{ x: -0.22, z: -0.11 }, { x: 0, z: -0.11 }, { x: 0.22, z: -0.11 },
+	{ x: -0.11, z: 0.15 }, { x: 0.11, z: 0.15 }
+]);
 
 export function createLabScene(previewElement) {
+	if (!previewElement) throw new Error('No se encontró el contenedor de la vista previa 3D.');
 	const scene = new THREE.Scene();
 	scene.background = new THREE.Color('#0b131a');
-	scene.fog = new THREE.Fog('#0b131a', 5, 12);
-	const camera = new THREE.PerspectiveCamera(52, 1, 0.05, 25);
-	camera.position.set(0, 1.55, 2.25);
-	camera.lookAt(0, 0.98, -0.85);
+	scene.fog = new THREE.Fog('#0b131a', 5, 10);
+	const camera = new THREE.PerspectiveCamera(54, 1, 0.05, 18);
+	camera.position.set(0, 1.65, 2.75);
+	camera.lookAt(0, 0.65, 0);
 
 	const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 	renderer.setSize(previewElement.clientWidth || 640, previewElement.clientHeight || 340, false);
 	renderer.outputColorSpace = THREE.SRGBColorSpace;
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;
-	renderer.toneMappingExposure = 1.15;
+	renderer.toneMappingExposure = 1.1;
 	renderer.xr.enabled = true;
 	renderer.xr.setReferenceSpaceType('local-floor');
 	previewElement.appendChild(renderer.domElement);
 
-	scene.add(new THREE.HemisphereLight(0xcde8ef, 0x28323a, 2.1));
-	const keyLight = new THREE.DirectionalLight(0xffe6cb, 2.0);
-	keyLight.position.set(-2.5, 4, 2.5);
-	scene.add(keyLight);
-	const rimLight = new THREE.DirectionalLight(0x76c8d5, 1.0);
-	rimLight.position.set(2, 2.5, -3);
-	scene.add(rimLight);
-
-	createRoom(scene);
-	createTable(scene);
-	const targets = createTargets(scene);
-	const pieces = createPieces(scene);
-
+	addLights(scene);
+	const physicsWorld = createPhysicsWorld();
+	const physicsMaterials = createPhysicsMaterials(physicsWorld);
+	createRoom(scene, physicsWorld, physicsMaterials.surface);
+	const stations = createStations(scene, physicsWorld, physicsMaterials.surface);
+	const bins = createBins(scene, physicsWorld, physicsMaterials.surface);
+	const pieces = createPieces(scene, physicsWorld, physicsMaterials.object);
 	const resizeObserver = new ResizeObserver(() => {
 		const width = Math.max(1, previewElement.clientWidth);
 		const height = Math.max(1, previewElement.clientHeight);
@@ -52,151 +68,254 @@ export function createLabScene(previewElement) {
 	});
 	resizeObserver.observe(previewElement);
 
-	return { scene, camera, renderer, pieces, targets, disposeLayout: () => resizeObserver.disconnect() };
+	const app = {
+		scene, camera, renderer, physicsWorld, stations, bins, pieces,
+		stepPhysics(deltaSeconds) {
+			stepPhysics(physicsWorld, deltaSeconds);
+			syncPhysicsMeshes(pieces);
+		},
+		resetLayout() { resetPieceLayout(pieces, stations); },
+		disposeLayout() { resizeObserver.disconnect(); }
+	};
+	resetPieceLayout(pieces, stations);
+	return app;
 }
 
-function createRoom(scene) {
+function addLights(scene) {
+	scene.add(new THREE.HemisphereLight(0xcde8ef, 0x28323a, 1.9));
+	const key = new THREE.DirectionalLight(0xffe6cb, 2.1);
+	key.position.set(-2.5, 4, 2.5);
+	scene.add(key);
+	const fill = new THREE.DirectionalLight(0x76c8d5, 0.8);
+	fill.position.set(2, 2.5, -2);
+	scene.add(fill);
+}
+
+function createPhysicsMaterials(world) {
+	const surface = new CANNON.Material('laboratory-surface');
+	const object = new CANNON.Material('laboratory-object');
+	world.defaultContactMaterial.friction = 0.58;
+	world.defaultContactMaterial.restitution = 0.3;
+	world.addContactMaterial(new CANNON.ContactMaterial(object, surface, { friction: 0.66, restitution: 0.28 }));
+	world.addContactMaterial(new CANNON.ContactMaterial(object, object, { friction: 0.48, restitution: 0.36 }));
+	return { surface, object };
+}
+
+function createRoom(scene, world, surfaceMaterial) {
 	const floor = new THREE.Mesh(
-		new THREE.PlaneGeometry(5.5, 5.5),
-		new THREE.MeshStandardMaterial({ color: '#18252d', roughness: 0.95, metalness: 0 })
+		new THREE.PlaneGeometry(5, 5),
+		new THREE.MeshStandardMaterial({ color: '#18252d', roughness: 0.94 })
 	);
 	floor.rotation.x = -Math.PI / 2;
-	floor.position.set(0, -0.015, -0.9);
+	floor.position.y = -0.01;
 	scene.add(floor);
-	const grid = new THREE.GridHelper(4, 20, '#49616a', '#263943');
-	grid.position.set(0, 0.002, -0.9);
+	const floorBody = new CANNON.Body({ mass: 0, material: surfaceMaterial });
+	floorBody.addShape(new CANNON.Plane());
+	floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+	floorBody.position.y = -0.01;
+	world.addBody(floorBody);
+
+	const grid = new THREE.GridHelper(5, 25, '#49616a', '#263943');
+	grid.position.y = 0.003;
 	grid.material.transparent = true;
 	grid.material.opacity = 0.22;
 	scene.add(grid);
-	const backWall = new THREE.Mesh(
-		new THREE.PlaneGeometry(5.5, 3.5),
-		new THREE.MeshBasicMaterial({ color: '#101b22' })
-	);
-	backWall.position.set(0, 1.75, -2.9);
-	scene.add(backWall);
+	const wallMaterial = new THREE.MeshStandardMaterial({ color: '#101b22', roughness: 0.9, side: THREE.DoubleSide });
+	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: 0, y: 1.35, z: -2.5, width: 5, height: 2.7, horizontal: true });
+	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: 0, y: 1.35, z: 2.5, width: 5, height: 2.7, horizontal: true });
+	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: -2.5, y: 1.35, z: 0, width: 5, height: 2.7, horizontal: false });
+	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: 2.5, y: 1.35, z: 0, width: 5, height: 2.7, horizontal: false });
 }
 
-function createTable(scene) {
-	const top = new THREE.Mesh(
-		new THREE.BoxGeometry(1.72, 0.075, 1.38),
-		new THREE.MeshStandardMaterial({ color: '#293941', roughness: 0.68, metalness: 0.12 })
-	);
-	top.position.set(0, TABLETOP_Y - 0.0375, -0.88);
-	scene.add(top);
-	const edge = new THREE.Mesh(
-		new THREE.BoxGeometry(1.74, 0.018, 1.40),
-		new THREE.MeshStandardMaterial({ color: '#6c9c92', roughness: 0.55, metalness: 0.15 })
-	);
-	edge.position.set(0, TABLETOP_Y - 0.075, -0.88);
-	scene.add(edge);
-	for (const x of [-0.72, 0.72]) {
-		for (const z of [-1.43, -0.33]) {
-			const leg = new THREE.Mesh(
-				new THREE.BoxGeometry(0.075, 0.72, 0.075),
-				new THREE.MeshStandardMaterial({ color: '#26343a', roughness: 0.8 })
-			);
-			leg.position.set(x, 0.36, z);
-			scene.add(leg);
+function addRoomWall(scene, world, material, surfaceMaterial, spec) {
+	const wall = new THREE.Mesh(new THREE.PlaneGeometry(spec.width, spec.height), material);
+	wall.position.set(spec.x, spec.y, spec.z);
+	if (!spec.horizontal) wall.rotation.y = Math.PI / 2;
+	scene.add(wall);
+	const half = spec.horizontal
+		? new CANNON.Vec3(spec.width / 2, spec.height / 2, 0.06)
+		: new CANNON.Vec3(0.06, spec.height / 2, spec.width / 2);
+	createBoxBody(world, { position: spec, halfExtents: half, material: surfaceMaterial });
+}
+
+function createStations(scene, world, surfaceMaterial) {
+	const topMaterial = new THREE.MeshStandardMaterial({ color: '#293941', roughness: 0.68, metalness: 0.08 });
+	const legMaterial = new THREE.MeshStandardMaterial({ color: '#26343a', roughness: 0.8 });
+	return STATIONS.map((station, index) => {
+		const group = new THREE.Group();
+		group.position.set(station.x, 0, station.z);
+		group.rotation.y = station.rotation;
+		const top = new THREE.Mesh(new THREE.BoxGeometry(TABLE_SIZE, 0.07, TABLE_SIZE), topMaterial);
+		top.position.y = TABLETOP_Y - 0.035;
+		group.add(top);
+		createBoxBody(world, {
+			position: { x: station.x, y: TABLETOP_Y - 0.035, z: station.z },
+			halfExtents: new CANNON.Vec3(TABLE_SIZE / 2, 0.035, TABLE_SIZE / 2), material: surfaceMaterial
+		});
+		for (const x of [-0.36, 0.36]) {
+			for (const z of [-0.36, 0.36]) {
+				const leg = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.70, 0.065), legMaterial);
+				leg.position.set(x, 0.35, z);
+				group.add(leg);
+				const worldPoint = rotateLocalPoint(station, x, z);
+				createBoxBody(world, {
+					position: { x: worldPoint.x, y: 0.35, z: worldPoint.z },
+					halfExtents: new CANNON.Vec3(0.0325, 0.35, 0.0325), material: surfaceMaterial
+				});
+			}
+		}
+		const label = createTextPlane(`MESA ${index + 1}`, { worldWidth: 0.34, worldHeight: 0.06, fontSize: 34, background: 'rgba(12, 20, 26, 0.96)', color: '#e8efeb' });
+		label.position.set(0, TABLETOP_Y + 0.12, -0.35);
+		group.add(label);
+		scene.add(group);
+		return { ...station, id: `table-${index + 1}`, group };
+	});
+}
+
+function createBins(scene, world, surfaceMaterial) {
+	const positions = [
+		{ x: -0.255, z: -0.255 }, { x: 0.255, z: -0.255 },
+		{ x: -0.255, z: 0.255 }, { x: 0.255, z: 0.255 }
+	];
+	return CATEGORY_SPECS.map((category, index) => {
+		const position = positions[index];
+		const group = new THREE.Group();
+		group.position.set(position.x, 0, position.z);
+		const standMaterial = new THREE.MeshStandardMaterial({ color: '#283940', roughness: 0.78 });
+		const stand = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.39, 0.34), standMaterial);
+		stand.position.y = 0.195;
+		group.add(stand);
+		createBoxBody(world, {
+			position: { x: position.x, y: 0.195, z: position.z },
+			halfExtents: new CANNON.Vec3(0.17, 0.195, 0.17), material: surfaceMaterial
+		});
+
+		const baseY = 0.39;
+		const baseThickness = 0.04;
+		const wallHeight = 0.27;
+		const wallThickness = 0.035;
+		const innerHalf = 0.16;
+		const outerHalf = innerHalf + wallThickness;
+		const bodyMaterial = new THREE.MeshStandardMaterial({ color: category.color, roughness: 0.42, metalness: 0.08, transparent: true, opacity: 0.78, side: THREE.DoubleSide });
+		addBinPart(group, world, surfaceMaterial, bodyMaterial, position, 0, baseY + baseThickness / 2, 0, innerHalf * 2 + wallThickness * 2, baseThickness, innerHalf * 2 + wallThickness * 2);
+		addBinPart(group, world, surfaceMaterial, bodyMaterial, position, -outerHalf, baseY + baseThickness + wallHeight / 2, 0, wallThickness, wallHeight, innerHalf * 2 + wallThickness * 2);
+		addBinPart(group, world, surfaceMaterial, bodyMaterial, position, outerHalf, baseY + baseThickness + wallHeight / 2, 0, wallThickness, wallHeight, innerHalf * 2 + wallThickness * 2);
+		addBinPart(group, world, surfaceMaterial, bodyMaterial, position, 0, baseY + baseThickness + wallHeight / 2, -outerHalf, innerHalf * 2, wallHeight, wallThickness);
+		addBinPart(group, world, surfaceMaterial, bodyMaterial, position, 0, baseY + baseThickness + wallHeight / 2, outerHalf, innerHalf * 2, wallHeight, wallThickness);
+
+		const label = createTextPlane(category.name, { worldWidth: 0.39, worldHeight: 0.065, fontSize: 31, background: 'rgba(12, 20, 26, 0.96)', color: '#f6f3e9' });
+		label.position.set(0, 0.79, 0);
+		group.add(label);
+		scene.add(group);
+		return { id: category.id, name: category.name, color: category.color, group, position: new THREE.Vector3(position.x, baseY, position.z), innerHalf, floorY: baseY + baseThickness };
+	});
+}
+
+function addBinPart(group, world, surfaceMaterial, visualMaterial, binPosition, localX, y, localZ, width, height, depth) {
+	const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), visualMaterial);
+	mesh.position.set(localX, y, localZ);
+	group.add(mesh);
+	createBoxBody(world, {
+		position: { x: binPosition.x + localX, y, z: binPosition.z + localZ },
+		halfExtents: new CANNON.Vec3(width / 2, height / 2, depth / 2), material: surfaceMaterial
+	});
+}
+
+function createPieces(scene, world, objectMaterial) {
+	const pieces = [];
+	for (const category of CATEGORY_SPECS) {
+		for (let index = 0; index < 5; index += 1) {
+			const root = new THREE.Group();
+			const material = new THREE.MeshStandardMaterial({ color: category.color, roughness: 0.36, metalness: 0.06, emissive: '#000000', emissiveIntensity: 0.35 });
+			const mesh = new THREE.Mesh(category.geometry(), material);
+			mesh.castShadow = false;
+			mesh.receiveShadow = true;
+			mesh.userData.pieceId = `${category.id}-${index + 1}`;
+			root.add(mesh);
+			scene.add(root);
+			const body = new CANNON.Body({
+				mass: OBJECT_MASS_KG,
+				material: objectMaterial,
+				shape: category.shape(),
+				linearDamping: 0.025,
+				angularDamping: 0.12,
+				allowSleep: true,
+				sleepSpeedLimit: 0.12,
+				sleepTimeLimit: 0.65
+			});
+			body.updateMassProperties();
+			world.addBody(body);
+			pieces.push({
+				id: `${category.id}-${index + 1}`,
+				name: category.name,
+				categoryId: category.id,
+				category,
+				status: 'available',
+				root,
+				mesh,
+				material,
+				body,
+				massKg: OBJECT_MASS_KG,
+				halfHeight: category.halfHeight,
+				boundingRadius: category.radius,
+				homeTableId: null,
+				assignedBinId: category.id,
+				classified: false,
+				counted: false,
+				startPosition: new THREE.Vector3(),
+				startQuaternion: new THREE.Quaternion()
+			});
 		}
 	}
-	const centerLine = new THREE.Mesh(
-		new THREE.BoxGeometry(1.45, 0.004, 0.008),
-		new THREE.MeshBasicMaterial({ color: '#53716e' })
-	);
-	centerLine.position.set(0, TABLETOP_Y + 0.004, -0.88);
-	scene.add(centerLine);
+	return pieces;
 }
 
-function createTargets(scene) {
-	return PARTS.map((spec, index) => {
-		const x = PART_X[index];
-		const z = -1.17;
-		const group = new THREE.Group();
-		group.position.set(x, TABLETOP_Y + 0.012, z);
-		const targetMaterial = new THREE.MeshStandardMaterial({ color: spec.color, emissive: spec.color, emissiveIntensity: 0.16, transparent: true, opacity: 0.66, roughness: 0.6, metalness: 0.08 });
-		const plate = new THREE.Mesh(spec.targetGeometry(), targetMaterial);
-		plate.position.y = 0;
-		if (spec.id === 'sphere' || spec.id === 'cylinder') plate.rotation.x = -Math.PI / 2;
-		group.add(plate);
-		const center = new THREE.Mesh(
-			new THREE.CircleGeometry(0.035, 24),
-			new THREE.MeshBasicMaterial({ color: spec.color, transparent: true, opacity: 0.18, side: THREE.DoubleSide })
-		);
-		center.rotation.x = -Math.PI / 2;
-		center.position.y = 0.014;
-		group.add(center);
-		scene.add(group);
-		const label = createTextPlane(`${String.fromCharCode(65 + index)} · ${spec.name}`, { worldWidth: 0.29, worldHeight: 0.05, height: 120, fontSize: 38, background: 'rgba(12, 20, 26, 0.96)', color: '#e8efeb' });
-		label.position.set(x, TABLETOP_Y + 0.09, z + 0.18);
-		scene.add(label);
-		return {
-			id: spec.id,
-			name: spec.name,
-			group,
-			plate,
-			center,
-			label,
-			position: new THREE.Vector3(x, spec.centerY, z),
-			quaternion: new THREE.Quaternion(),
-			baseColor: spec.color,
-			status: 'available'
-		};
-	});
-}
-
-function createPieces(scene) {
-	return PARTS.map((spec, index) => {
-		const root = new THREE.Group();
-		root.position.set(PART_X[index], spec.centerY, -0.49);
-		root.userData.pieceId = spec.id;
-		const material = new THREE.MeshStandardMaterial({ color: spec.color, roughness: 0.34, metalness: 0.08, emissive: '#000000', emissiveIntensity: 0.4 });
-		const mesh = new THREE.Mesh(spec.geometry(), material);
-		mesh.castShadow = false;
-		mesh.receiveShadow = true;
-		mesh.userData.pieceId = spec.id;
-		root.add(mesh);
-		const label = createTextPlane(`${String.fromCharCode(65 + index)} · ${spec.name}`, { worldWidth: 0.25, worldHeight: 0.045, height: 100, fontSize: 42, background: 'rgba(12, 20, 26, 0.96)', color: '#f4efe6' });
-		label.position.set(0, 0.16, 0.10);
-		root.add(label);
-		scene.add(root);
-		return {
-			id: spec.id,
-			name: spec.name,
-			status: 'available',
-			root,
-			mesh,
-			material,
-			color: spec.color,
-			startPosition: root.position.clone(),
-			startQuaternion: root.quaternion.clone(),
-			velocity: new THREE.Vector3(),
-			physicsActive: false,
-			restCenterY: spec.centerY,
-			floorCenterY: spec.centerY - TABLETOP_Y,
-			targetId: spec.id
-		};
-	});
-}
-
-export function setTargetStatus(target, status) {
-	target.status = status;
-	if (status === 'placed') {
-		target.plate.material.color.set('#74e0a2');
-		target.plate.material.emissive.set('#3aa96b');
-		target.plate.material.emissiveIntensity = 0.75;
-		target.plate.material.opacity = 0.95;
-		target.center.material.color.set('#b7ffd0');
-	} else if (status === 'error') {
-		target.plate.material.color.set('#ff7774');
-		target.plate.material.emissive.set('#c93544');
-		target.plate.material.emissiveIntensity = 0.8;
-		target.plate.material.opacity = 0.94;
-		target.center.material.color.set('#ffc0b7');
-	} else {
-		target.plate.material.color.set(target.baseColor);
-		target.plate.material.emissive.set(target.baseColor);
-		target.plate.material.emissiveIntensity = 0.16;
-		target.plate.material.opacity = 0.66;
-		target.center.material.color.set(target.baseColor);
+function resetPieceLayout(pieces, stations) {
+	const shuffledPieces = shuffle([...pieces]);
+	let cursor = 0;
+	for (const station of stations) {
+		const slots = shuffle([...OBJECT_SLOTS]);
+		const quarterTurns = Math.floor(Math.random() * 4);
+		for (let slotIndex = 0; slotIndex < slots.length; slotIndex += 1) {
+			const piece = shuffledPieces[cursor++];
+			const slot = rotateSlot(slots[slotIndex], quarterTurns);
+			const localX = slot.x + (Math.random() - 0.5) * 0.018;
+			const localZ = slot.z + (Math.random() - 0.5) * 0.018;
+			const worldPoint = rotateLocalPoint(station, localX, localZ);
+			const position = new THREE.Vector3(worldPoint.x, TABLETOP_Y + piece.halfHeight + 0.018, worldPoint.z);
+			const quaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
+			piece.homeTableId = station.id;
+			piece.status = 'available';
+			piece.classified = false;
+			piece.counted = false;
+			piece.material.emissive.set('#000000');
+			piece.startPosition.copy(position);
+			piece.startQuaternion.copy(quaternion);
+			resetDynamicBody(piece.body, position, quaternion);
+		}
 	}
+}
+
+function rotateSlot(slot, quarterTurns) {
+	if (quarterTurns === 1) return { x: -slot.z, z: slot.x };
+	if (quarterTurns === 2) return { x: -slot.x, z: -slot.z };
+	if (quarterTurns === 3) return { x: slot.z, z: -slot.x };
+	return slot;
+}
+
+function rotateLocalPoint(station, x, z) {
+	const cosine = Math.cos(station.rotation);
+	const sine = Math.sin(station.rotation);
+	return {
+		x: station.x + x * cosine + z * sine,
+		z: station.z - x * sine + z * cosine
+	};
+}
+
+function shuffle(items) {
+	for (let index = items.length - 1; index > 0; index -= 1) {
+		const swapIndex = Math.floor(Math.random() * (index + 1));
+		[items[index], items[swapIndex]] = [items[swapIndex], items[index]];
+	}
+	return items;
 }

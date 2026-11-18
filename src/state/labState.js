@@ -1,17 +1,9 @@
 export const LAB_CONFIG = Object.freeze({
-	assemblyToleranceMeters: 0.13,
 	grabDistanceMin: 0.45,
 	grabDistanceMax: 1.7,
 	pinchStartMeters: 0.023,
 	pinchReleaseMeters: 0.042,
 	maxRayDistance: 2.1,
-	gravity: 9.8,
-	maxThrowSpeed: 2.4,
-	throwVelocitySmoothing: 0.35,
-	impactBounce: 0.08,
-	surfaceFriction: 8,
-	tableBounds: Object.freeze({ minX: -0.82, maxX: 0.82, minZ: -1.52, maxZ: -0.24 }),
-	moveBounds: Object.freeze({ minX: -0.78, maxX: 0.78, minY: 0.875, maxY: 1.65, minZ: -1.5, maxZ: -0.32 }),
 	messageDurationMs: 2400
 });
 
@@ -19,19 +11,20 @@ export function createLabState() {
 	return {
 		phase: 'ready',
 		pieces: [],
-		targets: [],
+		bins: [],
+		tables: [],
 		selectedPieceId: null,
 		selectedBy: null,
 		dragDistance: 0,
 		xr: { session: null, supported: false, supportChecked: false },
 		hands: { left: false, right: false, count: 0 },
 		timer: { elapsedMs: 0, running: false, lastTick: 0 },
-		ui: { message: 'Entra a VR y muestra tus manos para comenzar.', kind: 'info', revision: 0, errorTargetId: null, errorPieceId: null, errorUntil: 0 }
+		ui: { message: 'Entra a VR, muestra tus manos y clasifica las veinte figuras.', kind: 'info', revision: 0, errorTargetId: null, errorPieceId: null, errorUntil: 0 }
 	};
 }
 
 export function getProgress(state) {
-	return state.pieces.reduce((total, piece) => total + (piece.status === 'placed' ? 1 : 0), 0);
+	return state.pieces.reduce((total, piece) => total + (piece.classified ? 1 : 0), 0);
 }
 
 export function getElapsedMs(state, now = performance.now()) {
@@ -60,7 +53,7 @@ export function setMessage(state, message, kind = 'info', now = performance.now(
 export function updateMessageExpiry(state, now = performance.now()) {
 	if (state.ui.kind === 'error' && now >= state.ui.errorUntil) {
 		state.ui.kind = state.phase === 'complete' ? 'success' : 'info';
-		state.ui.message = state.phase === 'complete' ? 'Laboratorio completado. Reinicia para intentarlo de nuevo.' : 'Suelta la pieza cerca de su destino correspondiente.';
+		state.ui.message = state.phase === 'complete' ? 'Laboratorio completado. Reinicia para intentarlo de nuevo.' : 'Suelta la figura para que continúe bajo gravedad.';
 		state.ui.revision += 1;
 	}
 }

@@ -23,8 +23,11 @@ let audio;
 let sessionControls;
 let previousHandCount = -1;
 let lastHudUpdateAt = 0;
+let lastHudRevision = -1;
 let handCheckTimer = null;
 let handTrackingFailureShown = false;
+let previousFrameTime = null;
+let physicsFailureShown = false;
 
 window.addEventListener('error', event => {
 	if (event.target instanceof HTMLScriptElement && event.target.type === 'module') {
@@ -38,7 +41,8 @@ window.addEventListener('unhandledrejection', event => {
 try {
 	app = createLabScene(elements.preview);
 	state.pieces = app.pieces;
-	state.targets = app.targets;
+	state.bins = app.bins;
+	state.tables = app.stations;
 	audio = new FeedbackAudio();
 	
 	panel = createVrPanel(app.scene, {
@@ -46,7 +50,7 @@ try {
 		reset: () => interaction.reset(performance.now()),
 		exit: () => state.xr.session?.end().catch(error => setMessage(state, `No se pudo finalizar la sesión VR: ${error.message}`, 'error'))
 	});
-	interaction = new InteractionController(state, panel, audio);
+	interaction = new InteractionController(state, panel, audio, app.physicsWorld, app.resetLayout);
 	handTracking = new HandTracking(app.scene, state, side => interaction.onTrackingLost(side));
 
 	sessionControls = createSessionControls(app.renderer, state, elements, {
@@ -78,6 +82,8 @@ try {
 
 function renderFrame(_time, xrFrame) {
 	const now = performance.now();
+	const physicsDelta = previousFrameTime === null ? 0 : Math.max(0, (now - previousFrameTime) / 1000);
+	previousFrameTime = now;
 	const session = app.renderer.xr.getSession();
 	if (session && xrFrame) {
 		let hands = [];
@@ -107,14 +113,23 @@ function renderFrame(_time, xrFrame) {
 	} else {
 		handTracking.update(null, app.renderer);
 	}
-	interaction.advancePhysics(now);
+	if (!physicsFailureShown) {
+		try {
+			app.stepPhysics(physicsDelta);
+		} catch (error) {
+			console.error('Rigid-body physics step failed:', error);
+			setMessage(state, `Falló el paso de física: ${error.message}. Revisa la consola del navegador.`, 'error', now);
+			physicsFailureShown = true;
+		}
+	}
 
 	const activeCamera = session ? app.renderer.xr.getCamera() : app.camera;
 	panel.group.visible = Boolean(session);
 	if (session) panel.anchor(activeCamera);
-	if (now - lastHudUpdateAt >= 200 || state.ui.revision > 0) {
+	if (now - lastHudUpdateAt >= 200 || state.ui.revision !== lastHudRevision) {
 		panel.update(state, now);
 		lastHudUpdateAt = now;
+		lastHudRevision = state.ui.revision;
 	}
 	app.renderer.render(app.scene, app.camera);
 }

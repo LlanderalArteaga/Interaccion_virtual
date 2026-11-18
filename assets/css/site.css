@@ -82,6 +82,7 @@ h1 span { color: var(--teal); }
 .chip-cone { --chip: #bf9be9; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .chip-cylinder { --chip: #e7c76e; border-radius: 40%; }
 .chip-prism { --chip: #ef8d9a; clip-path: polygon(50% 0, 100% 35%, 100% 100%, 0 100%, 0 35%); }
+.chip-hex { --chip: #e7c76e; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
 .requirements-section { padding-top: .25rem; }
 .requirement-item { display: flex; height: 100%; gap: 1rem; padding: 1.3rem 0; border-top: 1px solid var(--line); }
 .requirement-index { color: var(--teal); font-size: .72rem; font-weight: 800; letter-spacing: .1em; }
