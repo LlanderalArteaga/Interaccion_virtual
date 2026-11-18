@@ -168,7 +168,7 @@ function createStations(scene, world, surfaceMaterial) {
 		label.position.set(0, TABLETOP_Y + 0.12, -0.35);
 		group.add(label);
 		scene.add(group);
-		return { ...station, id: `table-${index + 1}`, group };
+		return { ...station, id: `table-${index + 1}`, size: TABLE_SIZE, topY: TABLETOP_Y, group };
 	});
 }
 
@@ -262,6 +262,8 @@ function createPieces(scene, world, objectMaterial) {
 				assignedBinId: category.id,
 				classified: false,
 				counted: false,
+				restingSince: null,
+				wrongFeedbackShown: false,
 				startPosition: new THREE.Vector3(),
 				startQuaternion: new THREE.Quaternion()
 			});
@@ -288,6 +290,8 @@ function resetPieceLayout(pieces, stations) {
 			piece.status = 'available';
 			piece.classified = false;
 			piece.counted = false;
+			piece.restingSince = null;
+			piece.wrongFeedbackShown = false;
 			piece.material.emissive.set('#000000');
 			piece.startPosition.copy(position);
 			piece.startQuaternion.copy(quaternion);

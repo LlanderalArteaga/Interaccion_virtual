@@ -116,6 +116,7 @@ function renderFrame(_time, xrFrame) {
 	if (!physicsFailureShown) {
 		try {
 			app.stepPhysics(physicsDelta);
+			interaction.checkWrongBinSettling(now);
 		} catch (error) {
 			console.error('Rigid-body physics step failed:', error);
 			setMessage(state, `Falló el paso de física: ${error.message}. Revisa la consola del navegador.`, 'error', now);
@@ -123,9 +124,7 @@ function renderFrame(_time, xrFrame) {
 		}
 	}
 
-	const activeCamera = session ? app.renderer.xr.getCamera() : app.camera;
 	panel.group.visible = Boolean(session);
-	if (session) panel.anchor(activeCamera);
 	if (now - lastHudUpdateAt >= 200 || state.ui.revision !== lastHudRevision) {
 		panel.update(state, now);
 		lastHudUpdateAt = now;

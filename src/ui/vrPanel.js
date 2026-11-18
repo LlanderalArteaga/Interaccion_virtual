@@ -10,6 +10,9 @@ export function createVrPanel(scene, actions) {
 		new THREE.MeshBasicMaterial({ map: texture, transparent: false, side: THREE.DoubleSide, depthWrite: true })
 	);
 	group.add(panel);
+	// Fijo al mundo: el panel no sigue la cabeza ni gira con la vista.
+	group.position.set(-0.84, 1.48, -0.74);
+	group.lookAt(0, 1.42, 0);
 
 	const controls = [
 		createControl('reset', 'REINICIAR', -0.17, 0x2f5961, actions.reset),
@@ -22,25 +25,9 @@ export function createVrPanel(scene, actions) {
 	let lastTimeSecond = -1;
 	let lastProgressSignature = '';
 	let hoveredControlId = null;
-	const cameraPosition = new THREE.Vector3();
-	const cameraQuaternion = new THREE.Quaternion();
-	const forward = new THREE.Vector3();
-	const right = new THREE.Vector3();
-	const up = new THREE.Vector3();
-
 	return {
 		group,
 		controls: controls.map(control => control.hitMesh),
-		anchor(camera) {
-			camera.updateWorldMatrix(true, false);
-			camera.getWorldPosition(cameraPosition);
-			camera.getWorldQuaternion(cameraQuaternion);
-			forward.set(0, 0, -1).applyQuaternion(cameraQuaternion).normalize();
-			right.set(1, 0, 0).applyQuaternion(cameraQuaternion).normalize();
-			up.set(0, 1, 0).applyQuaternion(cameraQuaternion).normalize();
-			group.position.copy(cameraPosition).addScaledVector(forward, 1.18).addScaledVector(right, -0.98).addScaledVector(up, -0.08);
-			group.lookAt(cameraPosition);
-		},
 		update(state, now) {
 			const timeSecond = Math.floor(now / 1000);
 			const progressSignature = state.pieces.map(piece => piece.classified ? '1' : '0').join('');

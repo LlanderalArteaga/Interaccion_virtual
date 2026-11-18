@@ -3,6 +3,9 @@ import { CANNON } from '../physics/physicsWorld.js';
 import { LAB_CONFIG, setMessage } from '../state/labState.js';
 
 const THROW_SPEED_LIMIT = 4.2;
+const REST_LINEAR_SPEED = 0.17;
+const REST_ANGULAR_SPEED = 0.32;
+const REST_CONFIRM_MS = 700;
 
 export class InteractionController {
 	constructor(state, panel, audio, physicsWorld, resetLayout) {
@@ -122,6 +125,8 @@ export class InteractionController {
 		this.state.selectedPieceId = piece.id;
 		this.state.selectedBy = hand.side;
 		piece.status = 'held';
+		piece.restingSince = null;
+		piece.wrongFeedbackShown = false;
 		this.#setBodyType(piece.body, CANNON.Body.KINEMATIC, 0);
 		piece.body.velocity.set(0, 0, 0);
 		piece.body.angularVelocity.set(0, 0, 0);
@@ -143,6 +148,7 @@ export class InteractionController {
 		this.nextPosition.x = THREE.MathUtils.clamp(this.nextPosition.x, -2.05, 2.05);
 		this.nextPosition.y = THREE.MathUtils.clamp(this.nextPosition.y, 0.12, 2.25);
 		this.nextPosition.z = THREE.MathUtils.clamp(this.nextPosition.z, -2.05, 2.05);
+		this.#keepHeldPieceAboveTables(piece);
 		const deltaSeconds = (now - this.lastDragTime) / 1000;
 		if (deltaSeconds > 0 && deltaSeconds <= 0.1) {
 			this.frameVelocity.copy(this.nextPosition).sub(this.previousDragPosition)
@@ -170,6 +176,7 @@ export class InteractionController {
 		piece.body.aabbNeedsUpdate = true;
 		piece.body.wakeUp();
 		piece.status = 'released';
+		piece.restingSince = null;
 		piece.material.emissive.set('#000000');
 		setMessage(this.state, 'Figura liberada: rebota y se estabiliza por colisiones físicas.', 'info', now);
 	}
@@ -183,10 +190,58 @@ export class InteractionController {
 			piece.body.aabbNeedsUpdate = true;
 			piece.body.wakeUp();
 			piece.status = 'released';
+			piece.restingSince = null;
 			piece.material.emissive.set('#000000');
 		}
 		this.state.selectedPieceId = null;
 		this.state.selectedBy = null;
+	}
+
+	checkWrongBinSettling(now) {
+		for (const piece of this.state.pieces) {
+			if (piece.classified || piece.status === 'held' || piece.status === 'available' || piece.wrongFeedbackShown) continue;
+			const bin = this.#findContainingBin(piece);
+			const isSettled = piece.body.velocity.length() <= REST_LINEAR_SPEED
+				&& piece.body.angularVelocity.length() <= REST_ANGULAR_SPEED;
+			if (!isSettled || bin?.id === piece.assignedBinId) {
+				piece.restingSince = null;
+				continue;
+			}
+			piece.restingSince ??= now;
+			if (now - piece.restingSince < REST_CONFIRM_MS) continue;
+			piece.status = 'error';
+			piece.wrongFeedbackShown = true;
+			piece.material.emissive.set('#9b2929');
+			this.audio.playError();
+			const locationMessage = bin
+				? `Esa figura no corresponde a ${bin.name}.`
+				: 'La figura quedó fuera de su recipiente.';
+			const targetBin = this.state.bins.find(item => item.id === piece.assignedBinId);
+			setMessage(this.state, `${locationMessage} Tómala de nuevo y llévala al recipiente ${targetBin?.name ?? piece.name}.`, 'error', now);
+		}
+	}
+
+	#findContainingBin(piece) {
+		const { x, y, z } = piece.body.position;
+		return this.state.bins.find(bin => {
+			const centerAllowance = Math.max(0.015, bin.innerHalf - piece.boundingRadius * 0.55);
+			const insideFootprint = Math.abs(x - bin.position.x) <= centerAllowance
+				&& Math.abs(z - bin.position.z) <= centerAllowance;
+			const insideHeight = y - piece.halfHeight >= bin.floorY - 0.025
+				&& y + piece.halfHeight <= bin.floorY + 0.27 + 0.025;
+			return insideFootprint && insideHeight;
+		});
+	}
+
+	#keepHeldPieceAboveTables(piece) {
+		for (const table of this.state.tables) {
+			const horizontalReach = table.size / 2 + piece.boundingRadius;
+			const overlapsTop = Math.abs(this.nextPosition.x - table.x) <= horizontalReach
+				&& Math.abs(this.nextPosition.z - table.z) <= horizontalReach;
+			if (!overlapsTop) continue;
+			const minimumCenterY = table.topY + piece.halfHeight + 0.006;
+			if (this.nextPosition.y < minimumCenterY) this.nextPosition.y = minimumCenterY;
+		}
 	}
 
 	#setBodyType(body, type, mass) {
@@ -206,11 +261,11 @@ export class InteractionController {
 		this.panel.setHovered(controlId);
 		if (this.hoveredPieceId && this.hoveredPieceId !== this.state.selectedPieceId) {
 			const previous = this.state.pieces.find(item => item.id === this.hoveredPieceId);
-			if (previous && !previous.classified) previous.material.emissive.set('#000000');
+			if (previous && !previous.classified && !previous.wrongFeedbackShown) previous.material.emissive.set('#000000');
 		}
 		if (pieceId && pieceId !== this.state.selectedPieceId) {
 			const current = this.state.pieces.find(item => item.id === pieceId);
-			if (current && !current.classified) current.material.emissive.set('#384b42');
+			if (current && !current.classified && !current.wrongFeedbackShown) current.material.emissive.set('#384b42');
 		}
 		this.hoveredPieceId = pieceId;
 	}
