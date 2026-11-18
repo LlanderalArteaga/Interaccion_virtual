@@ -5,6 +5,12 @@ export const LAB_CONFIG = Object.freeze({
 	pinchStartMeters: 0.023,
 	pinchReleaseMeters: 0.042,
 	maxRayDistance: 2.1,
+	gravity: 9.8,
+	maxThrowSpeed: 2.4,
+	throwVelocitySmoothing: 0.35,
+	impactBounce: 0.08,
+	surfaceFriction: 8,
+	tableBounds: Object.freeze({ minX: -0.82, maxX: 0.82, minZ: -1.52, maxZ: -0.24 }),
 	moveBounds: Object.freeze({ minX: -0.78, maxX: 0.78, minY: 0.875, maxY: 1.65, minZ: -1.5, maxZ: -0.32 }),
 	messageDurationMs: 2400
 });

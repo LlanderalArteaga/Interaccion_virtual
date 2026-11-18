@@ -107,6 +107,7 @@ function renderFrame(_time, xrFrame) {
 	} else {
 		handTracking.update(null, app.renderer);
 	}
+	interaction.advancePhysics(now);
 
 	const activeCamera = session ? app.renderer.xr.getCamera() : app.camera;
 	panel.group.visible = Boolean(session);

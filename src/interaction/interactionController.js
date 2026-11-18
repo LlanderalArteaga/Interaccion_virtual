@@ -14,6 +14,11 @@ export class InteractionController {
 		this.grabOffset = new THREE.Vector3();
 		this.grabPoint = new THREE.Vector3();
 		this.nextPosition = new THREE.Vector3();
+		this.previousDragPosition = new THREE.Vector3();
+		this.frameVelocity = new THREE.Vector3();
+		this.dragVelocity = new THREE.Vector3();
+		this.lastDragTime = 0;
+		this.lastPhysicsTime = null;
 		this.hoveredPieceId = null;
 	}
 
@@ -27,7 +32,7 @@ export class InteractionController {
 		for (const hand of handSnapshots) {
 			if (!hand.tracked) continue;
 			if (this.state.selectedBy === hand.side) {
-				if (hand.rayValid && hand.pinching) this.#moveSelected(hand);
+				if (hand.rayValid && hand.pinching) this.#moveSelected(hand, now);
 				if (hand.pinchEnded) this.#releaseSelected(now);
 				continue;
 			}
@@ -48,9 +53,9 @@ export class InteractionController {
 			if (!pieceHit) continue;
 			hoveredPiece ??= pieceHit.piece.id;
 			if (hand.pinchStarted && this.state.selectedPieceId === null && pieceHit.piece.status === 'available') {
-				this.#beginGrab(pieceHit.piece, hand, pieceHit.hit);
+				this.#beginGrab(pieceHit.piece, hand, pieceHit.hit, now);
 			}
-			if (this.state.selectedBy === hand.side && hand.pinching) this.#moveSelected(hand);
+			if (this.state.selectedBy === hand.side && hand.pinching) this.#moveSelected(hand, now);
 			if (this.state.selectedBy === hand.side && hand.pinchEnded) this.#releaseSelected(now);
 		}
 
@@ -71,7 +76,10 @@ export class InteractionController {
 		this.#clearTargetError();
 		if (this.state.selectedPieceId) {
 			const piece = this.state.pieces.find(item => item.id === this.state.selectedPieceId);
-			if (piece && (piece.status === 'selected' || piece.status === 'moving')) piece.status = 'available';
+			if (piece && (piece.status === 'selected' || piece.status === 'moving')) {
+				piece.status = 'available';
+				this.#startPhysics(piece);
+			}
 			piece?.material.emissive.set('#000000');
 		}
 		this.state.selectedPieceId = null;
@@ -86,7 +94,10 @@ export class InteractionController {
 	onTrackingLost(side) {
 		if (this.state.selectedBy !== side) return;
 		const piece = this.state.pieces.find(item => item.id === this.state.selectedPieceId);
-		if (piece && (piece.status === 'selected' || piece.status === 'moving')) piece.status = 'available';
+		if (piece && (piece.status === 'selected' || piece.status === 'moving')) {
+			piece.status = 'available';
+			this.#startPhysics(piece);
+		}
 		piece?.material.emissive.set('#000000');
 		this.state.selectedPieceId = null;
 		this.state.selectedBy = null;
@@ -101,6 +112,8 @@ export class InteractionController {
 			piece.status = 'available';
 			piece.root.position.copy(piece.startPosition);
 			piece.root.quaternion.copy(piece.startQuaternion);
+			piece.velocity.set(0, 0, 0);
+			piece.physicsActive = false;
 			piece.material.color.set(piece.color);
 			piece.material.emissive.set('#000000');
 		}
@@ -122,6 +135,38 @@ export class InteractionController {
 		this.state.timer.lastTick = now;
 	}
 
+	advancePhysics(now) {
+		const deltaSeconds = this.lastPhysicsTime === null
+			? 0
+			: THREE.MathUtils.clamp((now - this.lastPhysicsTime) / 1000, 0, 0.05);
+		this.lastPhysicsTime = now;
+		if (deltaSeconds === 0) return;
+
+		const table = LAB_CONFIG.tableBounds;
+		for (const piece of this.state.pieces) {
+			if (!piece.physicsActive) continue;
+			piece.velocity.y -= LAB_CONFIG.gravity * deltaSeconds;
+			piece.root.position.addScaledVector(piece.velocity, deltaSeconds);
+
+			const position = piece.root.position;
+			const overTable = position.x >= table.minX && position.x <= table.maxX
+				&& position.z >= table.minZ && position.z <= table.maxZ;
+			const surfaceY = overTable ? piece.restCenterY : piece.floorCenterY;
+			if (position.y <= surfaceY) {
+				position.y = surfaceY;
+				piece.velocity.y = Math.max(0, -piece.velocity.y * LAB_CONFIG.impactBounce);
+				const friction = Math.exp(-LAB_CONFIG.surfaceFriction * deltaSeconds);
+				piece.velocity.x *= friction;
+				piece.velocity.z *= friction;
+				if (piece.velocity.y < 0.12) piece.velocity.y = 0;
+				if (piece.velocity.length() < 0.06) {
+					piece.velocity.set(0, 0, 0);
+					piece.physicsActive = false;
+				}
+			}
+		}
+	}
+
 	#findPieceHit() {
 		let closest = null;
 		for (const piece of this.state.pieces) {
@@ -132,21 +177,26 @@ export class InteractionController {
 		return closest;
 	}
 
-	#beginGrab(piece, hand, hit) {
+	#beginGrab(piece, hand, hit, now) {
 		if (piece.status === 'placed' || this.state.selectedPieceId !== null) return;
 		this.state.selectedPieceId = piece.id;
 		this.state.selectedBy = hand.side;
 		piece.status = 'selected';
+		piece.physicsActive = false;
+		piece.velocity.set(0, 0, 0);
 		piece.root.updateWorldMatrix(true, false);
 		this.state.dragDistance = THREE.MathUtils.clamp(hit.distance, LAB_CONFIG.grabDistanceMin, LAB_CONFIG.grabDistanceMax);
 		hand.ray.at(this.state.dragDistance, this.grabPoint);
 		this.grabOffset.copy(piece.root.position).sub(this.grabPoint);
+		this.previousDragPosition.copy(piece.root.position);
+		this.dragVelocity.set(0, 0, 0);
+		this.lastDragTime = now;
 		piece.material.emissive.set('#718d62');
 		this.#clearTargetError();
 		setMessage(this.state, `Pieza ${piece.name} seleccionada. Mueve la mano y suéltala cerca de su destino.`, 'info');
 	}
 
-	#moveSelected(hand) {
+	#moveSelected(hand, now) {
 		const piece = this.state.pieces.find(item => item.id === this.state.selectedPieceId);
 		if (!piece || (piece.status !== 'selected' && piece.status !== 'moving')) return;
 		hand.ray.at(this.#getGrabDistance(), this.nextPosition).add(this.grabOffset);
@@ -154,7 +204,19 @@ export class InteractionController {
 		this.nextPosition.x = THREE.MathUtils.clamp(this.nextPosition.x, bounds.minX, bounds.maxX);
 		this.nextPosition.y = THREE.MathUtils.clamp(this.nextPosition.y, bounds.minY, bounds.maxY);
 		this.nextPosition.z = THREE.MathUtils.clamp(this.nextPosition.z, bounds.minZ, bounds.maxZ);
+		const deltaSeconds = (now - this.lastDragTime) / 1000;
+		if (deltaSeconds > 0 && deltaSeconds <= 0.1) {
+			this.frameVelocity.copy(this.nextPosition).sub(this.previousDragPosition)
+				.multiplyScalar(1 / deltaSeconds)
+				.clampLength(0, LAB_CONFIG.maxThrowSpeed);
+			this.dragVelocity.lerp(this.frameVelocity, LAB_CONFIG.throwVelocitySmoothing)
+				.clampLength(0, LAB_CONFIG.maxThrowSpeed);
+		} else {
+			this.dragVelocity.set(0, 0, 0);
+		}
 		piece.root.position.copy(this.nextPosition);
+		this.previousDragPosition.copy(this.nextPosition);
+		this.lastDragTime = now;
 		piece.status = 'moving';
 	}
 
@@ -177,6 +239,8 @@ export class InteractionController {
 		this.state.selectedBy = null;
 		if (result.accepted) {
 			piece.status = 'placed';
+			piece.physicsActive = false;
+			piece.velocity.set(0, 0, 0);
 			piece.root.position.copy(result.target.position);
 			piece.root.quaternion.copy(result.target.quaternion);
 			piece.material.emissive.set('#000000');
@@ -197,6 +261,7 @@ export class InteractionController {
 		}
 
 		piece.status = 'available';
+		this.#startPhysics(piece);
 		piece.material.emissive.set('#000000');
 		if (result.target && result.target.status !== 'placed') {
 			setTargetStatus(result.target, 'error');
@@ -210,6 +275,11 @@ export class InteractionController {
 		} else {
 			setMessage(this.state, 'La pieza quedó lejos de su destino. Acércala antes de soltarla.', 'error', now);
 		}
+	}
+
+	#startPhysics(piece) {
+		piece.velocity.copy(this.dragVelocity).clampLength(0, LAB_CONFIG.maxThrowSpeed);
+		piece.physicsActive = true;
 	}
 
 	#pauseTimer(now) {

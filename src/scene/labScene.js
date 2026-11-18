@@ -169,6 +169,10 @@ function createPieces(scene) {
 			color: spec.color,
 			startPosition: root.position.clone(),
 			startQuaternion: root.quaternion.clone(),
+			velocity: new THREE.Vector3(),
+			physicsActive: false,
+			restCenterY: spec.centerY,
+			floorCenterY: spec.centerY - TABLETOP_Y,
 			targetId: spec.id
 		};
 	});
