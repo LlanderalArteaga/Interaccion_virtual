@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CANNON } from '../physics/physicsWorld.js';
-import { LAB_CONFIG, setMessage } from '../state/labState.js';
+import { formatTime, getElapsedMs, getProgress, LAB_CONFIG, setMessage } from '../state/labState.js';
 
 const THROW_SPEED_LIMIT = 4.2;
 const REST_LINEAR_SPEED = 0.17;
@@ -114,7 +114,16 @@ export class InteractionController {
 		let closest = null;
 		for (const piece of this.state.pieces) {
 			if (piece.classified) continue;
-			const hit = this.raycaster.intersectObject(piece.mesh, false)[0];
+			let hit = this.raycaster.intersectObject(piece.mesh, false)[0];
+			if (piece.recoveryMarker.visible) {
+				piece.recoveryMarker.updateWorldMatrix(true, true);
+				const markerHit = this.raycaster.intersectObjects(piece.recoveryMarker.children, false)[0];
+				if (markerHit && (!hit || markerHit.distance < hit.distance)) {
+					const projectedDistance = new THREE.Vector3(piece.body.position.x, piece.body.position.y, piece.body.position.z)
+						.sub(this.raycaster.ray.origin).dot(this.raycaster.ray.direction);
+					hit = { distance: THREE.MathUtils.clamp(projectedDistance, 0, this.raycaster.far), point: this.raycaster.ray.at(projectedDistance, new THREE.Vector3()) };
+				}
+			}
 			if (hit && (!closest || hit.distance < closest.hit.distance)) closest = { piece, hit };
 		}
 		return closest;
@@ -203,12 +212,16 @@ export class InteractionController {
 			const bin = this.#findContainingBin(piece);
 			const isSettled = piece.body.velocity.length() <= REST_LINEAR_SPEED
 				&& piece.body.angularVelocity.length() <= REST_ANGULAR_SPEED;
-			if (!isSettled || bin?.id === piece.assignedBinId) {
+			if (!isSettled) {
 				piece.restingSince = null;
 				continue;
 			}
 			piece.restingSince ??= now;
 			if (now - piece.restingSince < REST_CONFIRM_MS) continue;
+			if (bin?.id === piece.assignedBinId) {
+				this.#classifyPiece(piece, now);
+				continue;
+			}
 			piece.status = 'error';
 			piece.wrongFeedbackShown = true;
 			piece.material.emissive.set('#9b2929');
@@ -228,9 +241,32 @@ export class InteractionController {
 			const insideFootprint = Math.abs(x - bin.position.x) <= centerAllowance
 				&& Math.abs(z - bin.position.z) <= centerAllowance;
 			const insideHeight = y - piece.halfHeight >= bin.floorY - 0.025
-				&& y + piece.halfHeight <= bin.floorY + 0.27 + 0.025;
+				&& y + piece.halfHeight <= bin.floorY + bin.wallHeight + 0.025;
 			return insideFootprint && insideHeight;
 		});
+	}
+
+	#classifyPiece(piece, now) {
+		if (piece.classified || piece.counted) return;
+		piece.classified = true;
+		piece.counted = true;
+		piece.status = 'classified';
+		piece.wrongFeedbackShown = false;
+		piece.recoveryMarker.visible = false;
+		piece.material.emissive.set('#277a4e');
+		piece.body.velocity.set(0, 0, 0);
+		piece.body.angularVelocity.set(0, 0, 0);
+		this.#setBodyType(piece.body, CANNON.Body.STATIC, 0);
+		this.audio.playSuccess();
+		const progress = getProgress(this.state);
+		if (progress === this.state.pieces.length) {
+			this.advanceTimer(now);
+			this.state.timer.running = false;
+			this.state.phase = 'complete';
+			setMessage(this.state, `Laboratorio completado en ${formatTime(getElapsedMs(this.state, now))}. Clasificaste las veinte figuras.`, 'success', now);
+			return;
+		}
+		setMessage(this.state, `${piece.name} en su recipiente correcto. Progreso: ${progress}/20.`, 'success', now);
 	}
 
 	#keepHeldPieceAboveTables(piece) {
