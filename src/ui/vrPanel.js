@@ -6,7 +6,7 @@ export function createVrPanel(scene, actions) {
 	const { canvas, texture } = createHudTexture();
 	drawHud(canvas, actions.getState());
 	const panel = new THREE.Mesh(
-		new THREE.PlaneGeometry(0.66, 0.9),
+		new THREE.PlaneGeometry(0.82, 1.12),
 		new THREE.MeshBasicMaterial({ map: texture, transparent: false, side: THREE.DoubleSide, depthWrite: true })
 	);
 	group.add(panel);
@@ -20,6 +20,7 @@ export function createVrPanel(scene, actions) {
 
 	let lastRevision = -1;
 	let lastTimeSecond = -1;
+	let lastProgressSignature = '';
 	let hoveredControlId = null;
 	const cameraPosition = new THREE.Vector3();
 	const cameraQuaternion = new THREE.Quaternion();
@@ -37,16 +38,18 @@ export function createVrPanel(scene, actions) {
 			forward.set(0, 0, -1).applyQuaternion(cameraQuaternion).normalize();
 			right.set(1, 0, 0).applyQuaternion(cameraQuaternion).normalize();
 			up.set(0, 1, 0).applyQuaternion(cameraQuaternion).normalize();
-			group.position.copy(cameraPosition).addScaledVector(forward, 1.18).addScaledVector(right, -0.58).addScaledVector(up, -0.08);
+			group.position.copy(cameraPosition).addScaledVector(forward, 1.18).addScaledVector(right, -0.98).addScaledVector(up, -0.08);
 			group.lookAt(cameraPosition);
 		},
 		update(state, now) {
 			const timeSecond = Math.floor(now / 1000);
-			if (lastRevision !== state.ui.revision || lastTimeSecond !== timeSecond) {
+			const progressSignature = state.pieces.map(piece => piece.classified ? '1' : '0').join('');
+			if (lastRevision !== state.ui.revision || lastTimeSecond !== timeSecond || lastProgressSignature !== progressSignature) {
 				drawHud(canvas, state, now);
 				texture.needsUpdate = true;
 				lastRevision = state.ui.revision;
 				lastTimeSecond = timeSecond;
+				lastProgressSignature = progressSignature;
 			}
 		},
 		setHovered(controlId) {

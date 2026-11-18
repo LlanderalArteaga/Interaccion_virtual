@@ -87,15 +87,37 @@ export function drawHud(canvas, state, now = performance.now()) {
 	context.fillStyle = rightTracked ? '#a9f0d1' : '#f0c875';
 	context.fillText(`MANO DERECHA  ${rightTracked ? 'DETECTADA' : 'NO DETECTADA'}`, 54, 580);
 
+	context.textAlign = 'left';
+	context.fillStyle = '#a9f0d1';
+	context.font = '700 27px system-ui, sans-serif';
+	context.fillText('PROGRESO POR FIGURA', 54, 660);
+	const categories = [
+		{ id: 'cube', label: 'CUBOS', color: '#e7a36d' },
+		{ id: 'sphere', label: 'ESFERAS', color: '#74c8dc' },
+		{ id: 'pyramid', label: 'PIRÁMIDES', color: '#c0a0f2' },
+		{ id: 'hex-prism', label: 'PRISMAS HEXAGONALES', color: '#f0cf76' }
+	];
+	for (const [index, category] of categories.entries()) {
+		const count = state.pieces.reduce((total, piece) => total + (piece.categoryId === category.id && piece.classified ? 1 : 0), 0);
+		const y = 720 + index * 58;
+		context.fillStyle = category.color;
+		context.beginPath();
+		context.arc(68, y - 8, 11, 0, Math.PI * 2);
+		context.fill();
+		context.fillStyle = '#d9e4df';
+		context.font = '600 25px system-ui, sans-serif';
+		context.fillText(`${category.label}  ${count}/5  ·  FALTAN ${5 - count}`, 98, y);
+	}
+
 	const messageColor = state.ui.kind === 'error' ? '#ff8d88' : state.ui.kind === 'success' ? '#a9f0d1' : '#dce6e3';
 	context.fillStyle = messageColor;
 	context.font = '700 27px system-ui, sans-serif';
-	wrapText(context, state.ui.message, 54, 680, width - 108, 38, 3);
+	wrapText(context, state.ui.message, 54, 990, width - 108, 38, 3);
 
 	if (state.phase === 'complete') {
 		context.fillStyle = '#a9f0d1';
 		context.font = '700 27px system-ui, sans-serif';
-		context.fillText(`TIEMPO FINAL  ${formatTime(getElapsedMs(state, now))}`, 54, 850);
+		context.fillText(`TIEMPO FINAL  ${formatTime(getElapsedMs(state, now))}`, 54, 1160);
 	}
 
 	return true;

@@ -12,7 +12,7 @@ import {
 } from '../physics/physicsWorld.js';
 
 export const TABLETOP_Y = 0.75;
-const TABLE_SIZE = 0.92;
+const TABLE_SIZE = 0.68;
 const OBJECT_MASS_KG = 0.18;
 const CATEGORY_SPECS = Object.freeze([
 	{ id: 'cube', name: 'CUBO', color: 0xe7a36d, geometry: () => new THREE.BoxGeometry(0.13, 0.13, 0.13), shape: () => new CANNON.Box(new CANNON.Vec3(0.065, 0.065, 0.065)), halfHeight: 0.065, radius: 0.092 },
@@ -22,10 +22,10 @@ const CATEGORY_SPECS = Object.freeze([
 ]);
 
 const STATIONS = Object.freeze([
-	{ id: 'north', x: 0, z: -1.12, rotation: 0 },
-	{ id: 'east', x: 1.12, z: 0, rotation: -Math.PI / 2 },
-	{ id: 'south', x: 0, z: 1.12, rotation: Math.PI },
-	{ id: 'west', x: -1.12, z: 0, rotation: Math.PI / 2 }
+	{ id: 'north-west', x: 0.33, z: -0.85, rotation: 0 },
+	{ id: 'north-east', x: 1.05, z: -0.85, rotation: 0 },
+	{ id: 'south-west', x: 0.33, z: -1.55, rotation: 0 },
+	{ id: 'south-east', x: 1.05, z: -1.55, rotation: 0 }
 ]);
 
 const OBJECT_SLOTS = Object.freeze([
@@ -39,8 +39,8 @@ export function createLabScene(previewElement) {
 	scene.background = new THREE.Color('#0b131a');
 	scene.fog = new THREE.Fog('#0b131a', 5, 10);
 	const camera = new THREE.PerspectiveCamera(54, 1, 0.05, 18);
-	camera.position.set(0, 1.65, 2.75);
-	camera.lookAt(0, 0.65, 0);
+	camera.position.set(0.1, 1.6, 2.4);
+	camera.lookAt(0.65, 0.7, -1.1);
 
 	const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
@@ -174,27 +174,27 @@ function createStations(scene, world, surfaceMaterial) {
 
 function createBins(scene, world, surfaceMaterial) {
 	const positions = [
-		{ x: -0.255, z: -0.255 }, { x: 0.255, z: -0.255 },
-		{ x: -0.255, z: 0.255 }, { x: 0.255, z: 0.255 }
+		{ x: -0.20, z: -0.35 }, { x: 0.12, z: -0.35 },
+		{ x: 0.44, z: -0.35 }, { x: 0.76, z: -0.35 }
 	];
 	return CATEGORY_SPECS.map((category, index) => {
 		const position = positions[index];
 		const group = new THREE.Group();
 		group.position.set(position.x, 0, position.z);
 		const standMaterial = new THREE.MeshStandardMaterial({ color: '#283940', roughness: 0.78 });
-		const stand = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.39, 0.34), standMaterial);
+		const stand = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.39, 0.28), standMaterial);
 		stand.position.y = 0.195;
 		group.add(stand);
 		createBoxBody(world, {
 			position: { x: position.x, y: 0.195, z: position.z },
-			halfExtents: new CANNON.Vec3(0.17, 0.195, 0.17), material: surfaceMaterial
+			halfExtents: new CANNON.Vec3(0.14, 0.195, 0.14), material: surfaceMaterial
 		});
 
 		const baseY = 0.39;
 		const baseThickness = 0.04;
 		const wallHeight = 0.27;
-		const wallThickness = 0.035;
-		const innerHalf = 0.16;
+		const wallThickness = 0.025;
+		const innerHalf = 0.115;
 		const outerHalf = innerHalf + wallThickness;
 		const bodyMaterial = new THREE.MeshStandardMaterial({ color: category.color, roughness: 0.42, metalness: 0.08, transparent: true, opacity: 0.78, side: THREE.DoubleSide });
 		addBinPart(group, world, surfaceMaterial, bodyMaterial, position, 0, baseY + baseThickness / 2, 0, innerHalf * 2 + wallThickness * 2, baseThickness, innerHalf * 2 + wallThickness * 2);
@@ -203,7 +203,7 @@ function createBins(scene, world, surfaceMaterial) {
 		addBinPart(group, world, surfaceMaterial, bodyMaterial, position, 0, baseY + baseThickness + wallHeight / 2, -outerHalf, innerHalf * 2, wallHeight, wallThickness);
 		addBinPart(group, world, surfaceMaterial, bodyMaterial, position, 0, baseY + baseThickness + wallHeight / 2, outerHalf, innerHalf * 2, wallHeight, wallThickness);
 
-		const label = createTextPlane(category.name, { worldWidth: 0.39, worldHeight: 0.065, fontSize: 31, background: 'rgba(12, 20, 26, 0.96)', color: '#f6f3e9' });
+		const label = createTextPlane(category.name, { worldWidth: 0.32, worldHeight: 0.065, fontSize: 29, background: 'rgba(12, 20, 26, 0.96)', color: '#f6f3e9' });
 		label.position.set(0, 0.79, 0);
 		group.add(label);
 		scene.add(group);

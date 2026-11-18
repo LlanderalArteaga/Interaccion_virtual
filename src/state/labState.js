@@ -1,9 +1,9 @@
 export const LAB_CONFIG = Object.freeze({
 	grabDistanceMin: 0.45,
-	grabDistanceMax: 1.7,
+	grabDistanceMax: 2.2,
 	pinchStartMeters: 0.023,
 	pinchReleaseMeters: 0.042,
-	maxRayDistance: 2.1,
+	maxRayDistance: 2.5,
 	messageDurationMs: 2400
 });
 
