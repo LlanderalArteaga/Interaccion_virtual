@@ -252,7 +252,7 @@ export class InteractionController {
 	#findContainingBin(piece) {
 		const { x, y, z } = piece.body.position;
 		return this.state.bins.find(bin => {
-			const centerAllowance = Math.max(0.015, bin.innerHalf - piece.boundingRadius * 0.55);
+			const centerAllowance = Math.max(0.01, bin.innerHalf - piece.boundingRadius * 0.9);
 			const insideFootprint = Math.abs(x - bin.position.x) <= centerAllowance
 				&& Math.abs(z - bin.position.z) <= centerAllowance;
 			// Valida el centro y la base: permite piezas apiladas dentro de la caja,
