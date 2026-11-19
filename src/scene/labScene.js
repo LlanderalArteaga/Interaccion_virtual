@@ -36,8 +36,9 @@ const OBJECT_SLOTS = Object.freeze([
 export function createLabScene(previewElement) {
 	if (!previewElement) throw new Error('No se encontró el contenedor de la vista previa 3D.');
 	const scene = new THREE.Scene();
-	scene.background = new THREE.Color('#0b131a');
-	scene.fog = new THREE.Fog('#0b131a', 5, 10);
+	// Ambiente opaco creado en Three.js: no usa cámara ni passthrough.
+	scene.background = new THREE.Color('#526b68');
+	scene.fog = new THREE.Fog('#526b68', 7, 13);
 	const camera = new THREE.PerspectiveCamera(54, 1, 0.05, 18);
 	camera.position.set(0.1, 1.6, 2.4);
 	camera.lookAt(0.65, 0.7, -1.1);
@@ -100,11 +101,11 @@ export function createLabScene(previewElement) {
 }
 
 function addLights(scene) {
-	scene.add(new THREE.HemisphereLight(0xcde8ef, 0x28323a, 1.9));
-	const key = new THREE.DirectionalLight(0xffe6cb, 2.1);
+	scene.add(new THREE.HemisphereLight(0xe5f6ef, 0x53635b, 2.15));
+	const key = new THREE.DirectionalLight(0xffedcf, 2.25);
 	key.position.set(-2.5, 4, 2.5);
 	scene.add(key);
-	const fill = new THREE.DirectionalLight(0x76c8d5, 0.8);
+	const fill = new THREE.DirectionalLight(0x8cdbd2, 1.0);
 	fill.position.set(2, 2.5, -2);
 	scene.add(fill);
 }
@@ -122,7 +123,7 @@ function createPhysicsMaterials(world) {
 function createRoom(scene, world, surfaceMaterial) {
 	const floor = new THREE.Mesh(
 		new THREE.PlaneGeometry(5, 5),
-		new THREE.MeshStandardMaterial({ color: '#18252d', roughness: 0.94 })
+		new THREE.MeshStandardMaterial({ color: '#405b58', roughness: 0.94 })
 	);
 	floor.rotation.x = -Math.PI / 2;
 	floor.position.y = -0.01;
@@ -133,16 +134,58 @@ function createRoom(scene, world, surfaceMaterial) {
 	floorBody.position.y = -0.01;
 	world.addBody(floorBody);
 
-	const grid = new THREE.GridHelper(5, 25, '#49616a', '#263943');
+	const grid = new THREE.GridHelper(5, 25, '#9ab9a8', '#627f76');
 	grid.position.y = 0.003;
 	grid.material.transparent = true;
-	grid.material.opacity = 0.22;
+	grid.material.opacity = 0.28;
 	scene.add(grid);
-	const wallMaterial = new THREE.MeshStandardMaterial({ color: '#101b22', roughness: 0.9, side: THREE.DoubleSide });
+	const wallMaterial = new THREE.MeshStandardMaterial({ color: '#536d66', roughness: 0.9, side: THREE.DoubleSide });
 	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: 0, y: 1.35, z: -2.5, width: 5, height: 2.7, horizontal: true });
 	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: 0, y: 1.35, z: 2.5, width: 5, height: 2.7, horizontal: true });
 	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: -2.5, y: 1.35, z: 0, width: 5, height: 2.7, horizontal: false });
 	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: 2.5, y: 1.35, z: 0, width: 5, height: 2.7, horizontal: false });
+	addMakerLabDecor(scene);
+}
+
+// Ventanales estilizados y luminarias de color. Son decoración opaca, sin colisionadores:
+// las paredes físicas existentes siguen definiendo exactamente los límites del laboratorio.
+function addMakerLabDecor(scene) {
+	const frame = new THREE.MeshStandardMaterial({ color: '#263f3e', roughness: 0.55, metalness: 0.18 });
+	const glass = new THREE.MeshBasicMaterial({ color: '#a0d9cd' });
+	const glassShade = new THREE.MeshBasicMaterial({ color: '#81bcb6' });
+	const backWallZ = -2.435;
+	for (const centerX of [-1.55, 0, 1.55]) {
+		const windowGroup = new THREE.Group();
+		windowGroup.position.set(centerX, 1.88, backWallZ);
+		const outer = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.78, 0.055), frame);
+		const pane = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.68, 0.018), glass);
+		pane.position.z = 0.038;
+		const mullion = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.68, 0.024), frame);
+		mullion.position.z = 0.052;
+		const sill = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.045, 0.09), frame);
+		sill.position.set(0, -0.405, 0.02);
+		windowGroup.add(outer, pane, mullion, sill);
+		// Banda de color para dar profundidad visual sin usar imágenes externas.
+		const accent = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.045, 0.022), glassShade);
+		accent.position.set(0, -0.20, 0.052);
+		windowGroup.add(accent);
+		scene.add(windowGroup);
+	}
+
+	const ceiling = new THREE.Mesh(
+		new THREE.PlaneGeometry(5, 5),
+		new THREE.MeshStandardMaterial({ color: '#718780', roughness: 0.96, side: THREE.DoubleSide })
+	);
+	ceiling.rotation.x = Math.PI / 2;
+	ceiling.position.y = 2.72;
+	scene.add(ceiling);
+
+	const lampMaterial = new THREE.MeshBasicMaterial({ color: '#ffe9b5' });
+	for (const x of [-1.2, 0.35, 1.65]) {
+		const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.025, 0.20), lampMaterial);
+		lamp.position.set(x, 2.68, -0.75);
+		scene.add(lamp);
+	}
 }
 
 function addRoomWall(scene, world, material, surfaceMaterial, spec) {

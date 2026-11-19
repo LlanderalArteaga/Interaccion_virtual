@@ -49,6 +49,8 @@ Los recursos del proyecto usan rutas relativas (`./src/...`, `./assets/...`) par
 
 ## Arquitectura
 
+La ambientación es un laboratorio universitario de prototipado generado con geometrías y materiales de Three.js: paredes verde pizarra, piso de taller, ventanales estilizados y luminarias. Es completamente opaca y no usa cámara ni passthrough. La decoración no agrega cuerpos al motor físico, así que el tamaño del espacio y las colisiones existentes se conservan.
+
 | Ruta | Responsabilidad |
 |---|---|
 | `index.html`, `assets/css/site.css` | Portada, Bootstrap, accesibilidad y estado de compatibilidad |

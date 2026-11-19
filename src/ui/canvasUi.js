@@ -93,10 +93,10 @@ export function drawHud(canvas, state, now = performance.now()) {
 
 	if (state.phase === 'ready' || state.phase === 'paused') {
 		context.fillStyle = '#17272f';
-		context.fillRect(42, 300, width - 84, 158);
+		context.fillRect(42, 300, width - 84, 135);
 		context.strokeStyle = '#74c8dc';
 		context.lineWidth = 4;
-		context.strokeRect(42, 300, width - 84, 158);
+		context.strokeRect(42, 300, width - 84, 135);
 		context.textAlign = 'center';
 		context.fillStyle = '#f2f1eb';
 		context.font = '700 34px system-ui, sans-serif';
