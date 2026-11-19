@@ -223,7 +223,7 @@ export class InteractionController {
 
 	checkWrongBinSettling(now) {
 		for (const piece of this.state.pieces) {
-			if (piece.classified || piece.status === 'held' || piece.status === 'available' || piece.wrongFeedbackShown) continue;
+			if (piece.classified || piece.status === 'held' || piece.status === 'available') continue;
 			const bin = this.#findContainingBin(piece);
 			const isSettled = piece.body.velocity.length() <= REST_LINEAR_SPEED
 				&& piece.body.angularVelocity.length() <= REST_ANGULAR_SPEED;
@@ -237,6 +237,9 @@ export class InteractionController {
 				this.#classifyPiece(piece, now);
 				continue;
 			}
+			// El aviso de error se muestra una sola vez, pero la pieza se sigue
+			// evaluando: puede terminar de asentarse dentro de su recipiente.
+			if (piece.wrongFeedbackShown) continue;
 			piece.status = 'error';
 			piece.wrongFeedbackShown = true;
 			piece.material.emissive.set('#9b2929');
@@ -251,20 +254,22 @@ export class InteractionController {
 
 	#findContainingBin(piece) {
 		const { x, y, z } = piece.body.position;
+		piece.body.computeAABB();
+		const pieceBottom = piece.body.aabb.lowerBound.y;
 		return this.state.bins.find(bin => {
-			// El pequeño margen absorbe el radio de la colisión y el contacto con las paredes.
-			const centerAllowance = bin.innerHalf + 0.02;
+			// El margen contempla el contacto lateral sin aceptar piezas fuera de la caja.
+			const centerAllowance = bin.innerHalf + piece.boundingRadius * 0.65;
 			const insideFootprint = Math.abs(x - bin.position.x) <= centerAllowance
 				&& Math.abs(z - bin.position.z) <= centerAllowance;
-			const lowerExtent = y - piece.halfHeight;
-			const aboveContainerFloor = lowerExtent >= bin.floorY - 0.025;
-			const belowRim = lowerExtent < bin.floorY + bin.wallHeight - 0.015;
+			const aboveContainerFloor = pieceBottom >= bin.floorY - 0.025;
+			const belowRim = pieceBottom < bin.floorY + bin.wallHeight - 0.015;
 			const restingOnAcceptedPiece = this.state.pieces.some(support => {
 				if (support.id === piece.id || !support.classified || support.assignedBinId !== bin.id) return false;
+				support.body.computeAABB();
 				const horizontalDistance = Math.hypot(x - support.body.position.x, z - support.body.position.z);
-				const supportTop = support.body.position.y + support.halfHeight;
+				const supportTop = support.body.aabb.upperBound.y;
 				return horizontalDistance <= (piece.boundingRadius + support.boundingRadius) * 1.35
-					&& Math.abs(lowerExtent - supportTop) <= 0.075;
+					&& Math.abs(pieceBottom - supportTop) <= 0.075;
 			});
 			// Acepta una pila anclada a una pieza ya depositada, aunque rebase la boca.
 			const insideHeight = aboveContainerFloor && (belowRim || restingOnAcceptedPiece);
