@@ -252,14 +252,22 @@ export class InteractionController {
 	#findContainingBin(piece) {
 		const { x, y, z } = piece.body.position;
 		return this.state.bins.find(bin => {
-			const centerAllowance = bin.innerHalf - 0.008;
+			// El pequeño margen absorbe el radio de la colisión y el contacto con las paredes.
+			const centerAllowance = bin.innerHalf + 0.02;
 			const insideFootprint = Math.abs(x - bin.position.x) <= centerAllowance
 				&& Math.abs(z - bin.position.z) <= centerAllowance;
-			// La pieza puede sobresalir al apilarse, siempre que su base siga bajo el borde.
-			// Una pieza apoyada encima del recipiente queda fuera porque su base está a la altura del borde.
 			const lowerExtent = y - piece.halfHeight;
-			const insideHeight = lowerExtent >= bin.floorY - 0.025
-				&& lowerExtent < bin.floorY + bin.wallHeight - 0.015;
+			const aboveContainerFloor = lowerExtent >= bin.floorY - 0.025;
+			const belowRim = lowerExtent < bin.floorY + bin.wallHeight - 0.015;
+			const restingOnAcceptedPiece = this.state.pieces.some(support => {
+				if (support.id === piece.id || !support.classified || support.assignedBinId !== bin.id) return false;
+				const horizontalDistance = Math.hypot(x - support.body.position.x, z - support.body.position.z);
+				const supportTop = support.body.position.y + support.halfHeight;
+				return horizontalDistance <= (piece.boundingRadius + support.boundingRadius) * 1.35
+					&& Math.abs(lowerExtent - supportTop) <= 0.075;
+			});
+			// Acepta una pila anclada a una pieza ya depositada, aunque rebase la boca.
+			const insideHeight = aboveContainerFloor && (belowRim || restingOnAcceptedPiece);
 			return insideFootprint && insideHeight;
 		});
 	}
