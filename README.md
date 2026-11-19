@@ -1,106 +1,136 @@
 # 3.2 Interacción virtual
 
-Laboratorio universitario inmersivo para clasificar veinte cuerpos geométricos en cuatro recipientes usando seguimiento real de manos, pinza y física de cuerpos rígidos.
+Laboratorio universitario de realidad virtual para clasificar figuras geométricas mediante seguimiento de manos y simulación de cuerpos rígidos. La persona toma cada figura con un gesto de pinza, la mueve y la suelta en el recipiente de su categoría. La gravedad, las colisiones y la fricción determinan cómo cae y se acomoda.
 
 **Autor:** Axel Llanderal Arteaga  
-**Tipo de entrega:** sitio estático, sin backend ni proceso de compilación.
+**Tipo de aplicación:** sitio web estático con una experiencia `immersive-vr`
 
-> La vista previa en computadora solo sirve para inspeccionar la escena y la gravedad. El seguimiento genuino de manos y la sesión `immersive-vr` deben validarse en Meta Quest Browser.
+**Proyecto de continuidad:** amplía la práctica 3.1 de interacción virtual.
 
-## Tecnologías
+## ¿Para qué sirve?
 
-- Three.js `0.187.0`, núcleo y addons desde jsDelivr.
-- cannon-es `0.20.0` para gravedad, colisiones, fricción, restitución y cuerpos dinámicos, estáticos y cinemáticos.
-- Bootstrap `5.3.9` para la portada HTML.
-- JavaScript ES modules, HTML5, CSS3 y WebXR Device API.
+La práctica permite explorar conceptos de interacción espacial y física 3D en una actividad concreta. El alumno reconoce cuatro clases de cuerpos, los manipula con las manos y observa la diferencia entre soltar una figura dentro de su recipiente correcto, colocarla en uno equivocado o dejarla caer fuera.
 
-Las versiones están fijadas en el import map de `index.html`. El navegador resuelve los nombres `three`, `three/addons/` y `cannon-es` a esas URL antes de cargar `src/main.js`; los imports del proyecto usan rutas relativas. El import map está antes del módulo principal.
+El reto tiene **20 figuras**: cinco cubos, cinco esferas, cinco pirámides cuadradas y cinco prismas hexagonales. Se distribuyen en **cuatro mesas** con cinco piezas cada una. Hay un recipiente abierto por categoría. El panel tridimensional muestra progreso, tiempo, intentos, errores, precisión y avance por categoría.
+
+La ambientación representa un laboratorio universitario de prototipado. Sus paredes, piso, ventanales y luminarias se generan con geometría de Three.js. El escenario es opaco y virtual: no usa cámara, passthrough ni realidad aumentada o mixta.
+
+## Cómo se usa
+
+1. Abre la página en Meta Quest Browser y entra a VR. El navegador debe permitir `immersive-vr` y seguimiento de manos.
+2. Muestra una o ambas manos. El panel del laboratorio indica si fueron detectadas.
+3. Haz pinza sobre **COMENZAR** en el panel 3D. El cronómetro empieza en ese momento.
+4. Apunta con el rayo de una mano, mantén la pinza para tomar una figura, llévala al recipiente de su categoría y suéltala.
+5. Espera a que la pieza quede estable. Solo entonces se confirma un acierto o un depósito equivocado.
+6. Usa **REINICIAR** para volver a repartir las piezas y limpiar los contadores. Si sales de VR durante una partida, el cronómetro se pausa; al entrar de nuevo, puedes reanudar.
+
+La figura no se teletransporta al recipiente. Al soltarla vuelve a ser un cuerpo dinámico, continúa sometida a gravedad y puede rebotar o chocar con otras superficies. Las piezas correctamente clasificadas quedan bloqueadas y se cuentan una sola vez.
+
+## Qué se necesita
+
+### Para consultar la portada y la vista previa
+
+- Una computadora con navegador moderno.
+- Conexión a Internet para cargar las bibliotecas fijadas en CDN.
+- Visual Studio Code y la extensión Live Server para servir los archivos localmente por HTTP.
+
+No se necesita Node.js, npm, un proceso de compilación ni un servidor propio.
+
+### Para la experiencia inmersiva
+
+- Meta Quest 3 con Meta Quest Browser.
+- Una URL servida por HTTPS, como la publicación de GitHub Pages.
+- Seguimiento de manos activado en el visor y autorización para iniciar VR.
+
+La vista previa de escritorio sirve para observar la escena y la física, pero **no simula el seguimiento real de manos**. El `localhost` de la computadora tampoco es el `localhost` del visor.
+
+## Tecnologías y carga de dependencias
+
+- HTML5 semántico y CSS3 para la portada.
+- Bootstrap **5.3.9**, cargado desde jsDelivr, solo para la página web inicial.
+- JavaScript moderno mediante módulos ES.
+- Three.js **0.187.0** para la escena WebGL, modelos geométricos, panel 3D y renderizado WebXR.
+- cannon-es **0.20.0** para gravedad, cuerpos rígidos y colisiones.
+- WebXR Device API para sesiones `immersive-vr` y articulaciones de manos.
+
+Las versiones de Three.js y cannon-es están fijadas en el **import map de `index.html`**, antes del módulo `src/main.js`. El import map le indica al navegador qué URL CDN corresponde a los nombres `three`, `three/addons/` y `cannon-es`. Los módulos propios se importan con rutas relativas. El núcleo y los complementos de Three.js usan el mismo proveedor CDN y la misma versión.
+
+## Arquitectura
+
+La aplicación conserva una fuente de verdad para el estado de la partida y para cada pieza. Cada pieza relaciona un ID único, categoría, malla, cuerpo físico, estado, mesa de origen y recipiente asignado. Los indicadores `classified` y `counted`, junto con una validación que sale si la pieza ya fue clasificada, evitan que contactos repetidos sumen más de un acierto.
+
+| Archivo o carpeta | Responsabilidad |
+|---|---|
+| `index.html` | Portada, metadatos, favicon, Bootstrap, import map y avisos de carga/compatibilidad. |
+| `assets/css/site.css` | Estilos responsivos y accesibles de la página inicial. |
+| `assets/icons/favicon.svg` | Favicon local. |
+| `src/main.js` | Crea y conecta los módulos, coordina el ciclo de render y maneja errores y limpieza. |
+| `src/scene/labScene.js` | Construye el escenario, mesas, figuras, recipientes, iluminación y distribución aleatoria. |
+| `src/physics/physicsWorld.js` | Configura cannon-es, gravedad, materiales, paso fijo y sincronización entre cuerpos y mallas. |
+| `src/xr/session.js` | Comprueba la compatibilidad e inicia o termina la sesión `immersive-vr`. |
+| `src/xr/handTracking.js` | Obtiene poses de las manos, dibuja su representación y detecta la pinza con histéresis. |
+| `src/interaction/interactionController.js` | Raycasting, selección, agarre, movimiento, liberación, asentamiento y clasificación. |
+| `src/state/labState.js` | Estado central de piezas, fase, tiempo, puntuación, mensajes y manos. |
+| `src/ui/vrPanel.js`, `src/ui/canvasUi.js` | Panel y controles dentro de VR, dibujados como contenido 3D y texturas; no son ventanas HTML superpuestas. |
+| `src/audio/feedback.js` | Tonos breves de acierto, error y finalización generados con Web Audio. |
+| `src/effects/celebration.js` | Confeti tridimensional al completar el reto. |
+
+La física y el renderizado se actualizan desde el ciclo de animación de Three.js. Las mallas visibles se sincronizan con sus cuerpos de cannon-es después del paso físico.
+
+## Decisiones de física y reglas
+
+- Se usa cannon-es con gravedad de **−9.82 m/s²**, paso físico de **1/60 s**, hasta cinco subpasos y un solver de 12 iteraciones.
+- Las mesas, el piso, las paredes y los recipientes tienen colisionadores estáticos. Cada recipiente está construido con base y paredes separadas; su boca queda abierta.
+- Cubos y esferas usan colisionadores sencillos. Pirámides y prismas usan formas convexas aproximadas para mantener bajo el costo de cálculo.
+- Al tomar una pieza, su cuerpo se controla de forma cinemática. Al soltarla, recupera su masa y movimiento dinámico; la velocidad del lanzamiento se limita para reducir sacudidas y penetraciones.
+- Un objeto se valida después de quedar suficientemente quieto. La categoría debe coincidir con el recipiente asignado y el objeto debe estar dentro de su zona útil. No se cuenta solo por tocar el recipiente.
+- Una colocación correcta suma una unidad y bloquea la pieza. Un recipiente equivocado genera un aviso y suma un error una sola vez por intento; la figura puede recuperarse y probarse otra vez.
+- Una pieza fuera de los recipientes no se pierde: el marcador de recuperación ayuda a localizarla y volver a tomarla.
+- La precisión se calcula como `aciertos / intentos confirmados × 100`. El tiempo de cada categoría se mide desde **COMENZAR** hasta su quinto acierto. Al salir de VR, el cronómetro se pausa.
+
+Estas decisiones priorizan una interacción estable en un visor autónomo. Los colisionadores de las formas complejas son aproximaciones; los lanzamientos muy rápidos y las pilas de piezas pueden comportarse distinto de un objeto físico real.
 
 ## Ejecutar localmente
 
 1. Abre esta carpeta en Visual Studio Code.
 2. Inicia `index.html` con Live Server.
-3. Revisa la portada y la vista previa; en Console y Network comprueba errores de imports, CDN, recursos o CORS.
+3. Consulta la portada y la vista previa. Si hay un problema de carga, revisa **Console** y **Network** en las herramientas del navegador: los errores de CDN, import map, rutas y CORS suelen aparecer ahí.
 
-Para usar WebXR, abre el sitio desde un origen seguro. `localhost` en la computadora no es `localhost` en el visor; la validación obligatoria de manos se realiza en Quest Browser con la URL HTTPS publicada y el seguimiento de manos activado.
+Para usar VR, abre la URL HTTPS publicada directamente en Meta Quest Browser y comienza la sesión mediante el botón de la página. La sesión necesita la acción explícita del usuario y seguimiento de manos disponible.
 
 ## Publicar en GitHub Pages
 
-1. Sube los archivos de esta carpeta a la rama `main` del repositorio.
+1. Publica los archivos del proyecto en la rama `main` del repositorio.
 2. En GitHub abre **Settings → Pages**.
-3. Selecciona **Deploy from a branch**, rama `main` y carpeta `/(root)`.
-4. Espera a que GitHub publique y abre la URL HTTPS del repositorio.
-5. En Quest Browser valida imports, sesión VR, ambas manos, física, clasificación, reinicio y salida.
+3. En **Build and deployment**, elige **Deploy from a branch**, rama `main` y carpeta `/(root)`.
+4. Abre la URL HTTPS que proporciona GitHub Pages. Los recursos locales usan rutas relativas para funcionar aunque el sitio esté bajo `/nombre-del-repositorio/`.
+5. Si una página no carga, revisa que el import map esté en `index.html`, que las rutas conserven `./` y que los CDN estén accesibles.
 
-Los recursos del proyecto usan rutas relativas (`./src/...`, `./assets/...`) para funcionar bajo la ruta de subdirectorio que usa GitHub Pages. URL de Pages compartida durante el desarrollo: <https://llanderalarteaga.github.io/Interaccion_virtual/>. La versión final debe volver a publicarse y comprobarse después de los últimos cambios locales.
+Repositorio del proyecto: <https://github.com/LlanderalArteaga/Interaccion_virtual>
 
-## Controles y reglas
+Página publicada: <https://llanderalarteaga.github.io/Interaccion_virtual/>
 
-- Entra a VR y muestra una o ambas manos.
-- Haz pinza sobre **COMENZAR** en el panel 3D. El cronómetro empieza en ese momento.
-- Apunta con el rayo, mantén la pinza para mover una figura y suéltala dentro del recipiente de su categoría.
-- La figura solo cuenta cuando queda estable dentro del recipiente correcto. No se teletransporta al destino; queda físicamente en su lugar y bloqueada.
-- Un depósito estable en un recipiente equivocado cuenta como un intento y un error. Una caída fuera de los recipientes muestra aviso, pero no cuenta como intento de clasificación.
-- Precisión = piezas correctamente clasificadas ÷ intentos confirmados × 100. Si no hay intentos, se muestra 0 %.
-- Cada tiempo de recipiente mide desde **COMENZAR** hasta que se valida la quinta pieza de esa categoría. Antes muestra “Pendiente”.
-- Salir de VR pausa el cronómetro. Al volver, usa **REANUDAR**. **REINICIAR** devuelve las piezas a las mesas, limpia el marcador y permite comenzar otra partida.
-- El botón **Reiniciar escenario** de la portada también restaura la escena antes o después de entrar a VR.
-- Solo una figura puede estar sujeta por vez. La selección usa rayo y pinza de la mano; al soltar vuelve a ser un cuerpo dinámico con una velocidad de lanzamiento limitada.
+La portada comprueba en tiempo de ejecución si el navegador ofrece `immersive-vr` y muestra un mensaje cuando la capacidad no está disponible. Esa comprobación no garantiza por sí sola que el seguimiento de manos esté activo: debe estar habilitado en Quest.
 
-## Arquitectura
+## Ajustar el contenido
 
-La ambientación es un laboratorio universitario de prototipado generado con geometrías y materiales de Three.js: paredes verde pizarra, piso de taller, ventanales estilizados y luminarias. Es completamente opaca y no usa cámara ni passthrough. La decoración no agrega cuerpos al motor físico, así que el tamaño del espacio y las colisiones existentes se conservan.
+Las categorías están definidas en `CATEGORY_SPECS` dentro de `src/scene/labScene.js`. Allí se especifican ID, nombre, color, geometría visible, colisionador y dimensiones aproximadas. Cambiar o añadir categorías también requiere mantener los mismos IDs en la creación de recipientes, el estado y el panel (`src/state/labState.js`, `createBins` en `src/scene/labScene.js` y `src/ui/canvasUi.js`).
 
-| Ruta | Responsabilidad |
-|---|---|
-| `index.html`, `assets/css/site.css` | Portada, Bootstrap, accesibilidad y estado de compatibilidad |
-| `src/main.js` | Inicio, ciclo de render y coordinación de módulos |
-| `src/scene/labScene.js` | Escena, cuatro mesas, veinte piezas, cuatro recipientes y reinicio aleatorio |
-| `src/physics/physicsWorld.js` | Mundo cannon-es, paso físico de 1/60 s, colisionadores y sincronización mesh/cuerpo |
-| `src/xr/session.js`, `src/xr/handTracking.js` | Sesión immersive-vr, articulaciones, rayos y detección de pinza |
-| `src/interaction/interactionController.js` | Sujeción cinemática, lanzamiento, reposo y validación de recipiente |
-| `src/state/labState.js` | Estado compartido, cronómetro, progreso y métricas |
-| `src/ui/vrPanel.js`, `src/ui/canvasUi.js` | HUD 3D, controles, marcador y resumen de victoria |
-| `src/audio/feedback.js`, `src/effects/celebration.js` | Tonos sintetizados localmente y confeti 3D |
+El número de piezas por categoría se define en el bucle de creación de piezas. Las cuatro mesas están en `STATIONS` y sus cinco posiciones iniciales en `OBJECT_SLOTS`. Las dimensiones de las cajas se configuran en `createBins`. Ajustar una forma o recipiente puede requerir cambiar sus tolerancias de detección en `src/interaction/interactionController.js`.
 
-Cada pieza tiene un ID único y relaciona categoría, malla, cuerpo, mesa de origen, recipiente asignado y estado. El contador se protege con los indicadores `classified`/`counted`; la validación sale inmediatamente si la pieza ya fue clasificada. Así un mismo contacto no puede sumar dos veces.
+## Créditos y licencias
 
-Las cuatro clases son cubo, esfera, pirámide cuadrada y prisma hexagonal; hay cinco de cada una, repartidas en cuatro mesas con cinco piezas por mesa. Al reiniciar se barajan las piezas, las ranuras y la orientación inicial. Los recipientes son ensamblajes físicos de base y paredes separadas, sin tapa.
+**Desarrollador y autor:** Axel Llanderal Arteaga.
 
-Los estados de las piezas son `available`, `held`, `released`, `stabilizing`, `classified`, `error` y `recoverable`. Las caídas al piso muestran un marcador y se pueden volver a sujetar.
+La escena, las figuras, las mesas, los recipientes, el panel, el marcador de recuperación y el confeti se generan en el código del proyecto. Los sonidos se sintetizan localmente con Web Audio. No se utilizan modelos externos ni se recopilan datos personales.
 
-### Cambiar las figuras
+- Three.js — licencia MIT: <https://github.com/mrdoob/three.js>
+- cannon-es — licencia MIT: <https://github.com/pmndrs/cannon-es>
+- Bootstrap — licencia MIT: <https://github.com/twbs/bootstrap>
+- Ejemplo de referencia para interacción WebXR: <https://threejs.org/examples/?q=vr#webxr_vr_handinput_pointerdrag>
+- Documentación de seguimiento de manos WebXR de Meta: <https://developers.meta.com/vr/documentation/web/webxr-hands/>
+- Documentación de cannon-es: <https://pmndrs.github.io/cannon-es/>
 
-Edita `CATEGORY_SPECS` en `src/scene/labScene.js`: cada definición incluye `id`, nombre, color, geometría visual, forma de cannon-es y dimensiones aproximadas. Añadir una clase también requiere agregar su forma y colisionador en `src/physics/physicsWorld.js`, crear la posición/color del recipiente en `createBins`, actualizar la lista del HUD en `src/ui/canvasUi.js` y el conjunto `CATEGORY_IDS` en `src/state/labState.js`. Mantén los mismos IDs en pieza, recipiente y marcador. El número por clase se controla en el bucle que crea piezas (`index < 5`); las cuatro mesas se definen en `STATIONS` y reciben cinco ranuras de `OBJECT_SLOTS` cada una.
+## Alcance y limitaciones
 
-## Decisiones y límites de física
-
-- Gravedad: `-9.82 m/s²`; paso fijo: `1/60 s`, con máximo de cinco subpasos por actualización.
-- Los cuerpos se duermen al estabilizarse. El agarre cambia el cuerpo a cinemático; la liberación restaura masa y dinámica. La velocidad de lanzamiento está limitada para reducir penetraciones y sacudidas.
-- Las pirámides usan un colisionador convexo aproximado. Tienen un umbral de estabilización ligeramente distinto por su balanceo. La validación usa posición, AABB y tolerancias; las pruebas de pirámides apiladas/inclinadas deben hacerse en Quest.
-- Durante el agarre hay una corrección específica para mantener la figura sobre las mesas. No equivale a detección continua de colisión para todas las superficies a cualquier velocidad; hay que revisar lanzamientos rápidos y contactos con bordes.
-- No se han medido FPS en Meta Quest 3. El rendimiento debe comprobarse en el visor real.
-
-## Assets, créditos y licencias
-
-Las piezas, mesas, recipientes, HUD, manos y confeti se generan con geometrías/texturas en código; no se descargan modelos ni imágenes. Los tonos de confirmación se sintetizan con Web Audio. El favicon es un SVG local.
-
-- Three.js, licencia MIT: <https://github.com/mrdoob/three.js>
-- cannon-es, licencia MIT: <https://github.com/pmndrs/cannon-es>
-- Bootstrap, licencia MIT: <https://github.com/twbs/bootstrap>
-- Referencia de interacción VR: <https://threejs.org/examples/?q=vr#webxr_vr_handinput_pointerdrag>
-- Documentación de manos WebXR de Meta: <https://developers.meta.com/vr/documentation/web/webxr-hands/>
-- Documentación cannon-es: <https://pmndrs.github.io/cannon-es/>
-
-La práctica amplía el proyecto 3.1 del alumno; no reproduce el ejemplo de Three.js como diseño final.
-
-## Pruebas y evidencia
-
-La matriz detallada está en [`docs/matriz-pruebas.md`](docs/matriz-pruebas.md). El código inspeccionado no sustituye las pruebas reales: toda celda de resultado observado/evidencia debe completarse con ejecución en computadora o Meta Quest según corresponda. Estado actual de publicación y visor: pendiente de volver a validar después de los últimos cambios locales.
-
-Para cerrar la entrega, adjunta:
-
-- URL pública del repositorio GitHub.
-- URL HTTPS de GitHub Pages después del último despliegue.
-- URL de video en Meta Quest 3 que muestre inicio, ambas manos, depósitos correctos y erróneos, reinicio y victoria.
-- Conclusiones del alumno y dos problemas reales corregidos durante el desarrollo.
+La aplicación es estática: no necesita backend, base de datos ni guarda partidas. El movimiento, la gravedad, el agarre, el conteo, el reinicio y los mensajes se ejecutan en el navegador. La vista previa de escritorio no sustituye una sesión inmersiva ni permite afirmar que el seguimiento funciona en el visor. El rendimiento y los casos de colisión complejos dependen del navegador y del dispositivo donde se ejecute.
