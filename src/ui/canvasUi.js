@@ -74,6 +74,23 @@ export function drawHud(canvas, state, now = performance.now()) {
 	context.fillText('Haz pinza para tomarla y lanzarla.', 54, 390);
 	context.fillText('Clasifícala en el recipiente de su forma.', 54, 435);
 
+	if (state.phase === 'complete') {
+		// El aviso queda en la zona central del HUD, separado de los botones inferiores.
+		context.fillStyle = 'rgba(169, 240, 209, 0.96)';
+		context.fillRect(42, 300, width - 84, 158);
+		context.strokeStyle = '#f2f1eb';
+		context.lineWidth = 4;
+		context.strokeRect(42, 300, width - 84, 158);
+		context.textAlign = 'center';
+		context.fillStyle = '#102027';
+		context.font = '800 48px system-ui, sans-serif';
+		context.fillText('¡GANASTE!', width / 2, 350);
+		context.font = '700 28px system-ui, sans-serif';
+		context.fillText('CLASIFICASTE LAS 20 FIGURAS', width / 2, 389);
+		context.font = '700 40px ui-monospace, monospace';
+		context.fillText(`TU TIEMPO  ${formatTime(getElapsedMs(state, now))}`, width / 2, 438);
+	}
+
 	const phaseLabel = state.phase === 'complete' ? 'COMPLETADO' : state.phase === 'active' ? 'EN CURSO' : 'PENDIENTE';
 	context.fillStyle = state.phase === 'complete' ? '#a9f0d1' : '#dce6e3';
 	context.font = '700 25px system-ui, sans-serif';
@@ -109,24 +126,11 @@ export function drawHud(canvas, state, now = performance.now()) {
 		context.fillText(`${category.label}  ${count}/5  ·  FALTAN ${5 - count}`, 98, y);
 	}
 
-	const messageColor = state.ui.kind === 'error' ? '#ff8d88' : state.ui.kind === 'success' ? '#a9f0d1' : '#dce6e3';
-	context.fillStyle = messageColor;
-	context.font = '700 27px system-ui, sans-serif';
-	wrapText(context, state.ui.message, 54, 990, width - 108, 38, 3);
-
-	if (state.phase === 'complete') {
-		context.fillStyle = 'rgba(169, 240, 209, 0.12)';
-		context.fillRect(42, 1080, width - 84, 142);
-		context.strokeStyle = 'rgba(169, 240, 209, 0.72)';
-		context.lineWidth = 3;
-		context.strokeRect(42, 1080, width - 84, 142);
-		context.textAlign = 'center';
-		context.fillStyle = '#a9f0d1';
-		context.font = '700 30px system-ui, sans-serif';
-		context.fillText('¡RETO COMPLETADO!', width / 2, 1128);
-		context.fillStyle = '#f2f1eb';
-		context.font = '700 42px ui-monospace, monospace';
-		context.fillText(`TU TIEMPO  ${formatTime(getElapsedMs(state, now))}`, width / 2, 1185);
+	if (state.phase !== 'complete') {
+		const messageColor = state.ui.kind === 'error' ? '#ff8d88' : state.ui.kind === 'success' ? '#a9f0d1' : '#dce6e3';
+		context.fillStyle = messageColor;
+		context.font = '700 27px system-ui, sans-serif';
+		wrapText(context, state.ui.message, 54, 990, width - 108, 38, 3);
 	}
 
 	return true;

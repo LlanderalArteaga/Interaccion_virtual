@@ -6,7 +6,7 @@ const CONFETTI_COLORS = ['#a9f0d1', '#74c8dc', '#e7a36d', '#c0a0f2', '#f0cf76', 
 
 export function createCelebration(scene) {
 	const geometry = new THREE.BoxGeometry(0.035, 0.055, 0.008);
-	const material = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+	const material = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
 	const confetti = new THREE.InstancedMesh(geometry, material, PARTICLE_COUNT);
 	confetti.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 	confetti.frustumCulled = false;
@@ -14,7 +14,8 @@ export function createCelebration(scene) {
 	scene.add(confetti);
 
 	const dummy = new THREE.Object3D();
-	const center = new THREE.Vector3(0.25, 1.48, -0.95);
+	// Frente a los recipientes y delante del HUD en el eje de profundidad.
+	const center = new THREE.Vector3(0.25, 1.62, -0.16);
 	const particles = Array.from({ length: PARTICLE_COUNT }, () => ({
 		velocity: new THREE.Vector3(),
 		rotation: new THREE.Vector3(),
