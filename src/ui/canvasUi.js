@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { formatTime, getElapsedMs, getProgress } from '../state/labState.js';
+import { formatTime, getAccuracy, getElapsedMs, getProgress } from '../state/labState.js';
 
 export function createTextPlane(text, options = {}) {
 	const width = options.width ?? 512;
@@ -91,7 +91,21 @@ export function drawHud(canvas, state, now = performance.now()) {
 		context.fillText(`TU TIEMPO  ${formatTime(getElapsedMs(state, now))}`, width / 2, 438);
 	}
 
-	const phaseLabel = state.phase === 'complete' ? 'COMPLETADO' : state.phase === 'active' ? 'EN CURSO' : 'PENDIENTE';
+	if (state.phase === 'ready' || state.phase === 'paused') {
+		context.fillStyle = '#17272f';
+		context.fillRect(42, 300, width - 84, 158);
+		context.strokeStyle = '#74c8dc';
+		context.lineWidth = 4;
+		context.strokeRect(42, 300, width - 84, 158);
+		context.textAlign = 'center';
+		context.fillStyle = '#f2f1eb';
+		context.font = '700 34px system-ui, sans-serif';
+		context.fillText(state.phase === 'ready' ? 'HAZ PINZA EN COMENZAR' : 'HAZ PINZA EN REANUDAR', width / 2, 355);
+		context.font = '600 25px system-ui, sans-serif';
+		context.fillText('El cronometro iniciara o continuara entonces.', width / 2, 410);
+	}
+
+	const phaseLabel = state.phase === 'complete' ? 'COMPLETADO' : state.phase === 'active' ? 'EN CURSO' : state.phase === 'paused' ? 'PAUSADO' : 'PENDIENTE';
 	context.fillStyle = state.phase === 'complete' ? '#a9f0d1' : '#dce6e3';
 	context.font = '700 25px system-ui, sans-serif';
 	context.fillText(`ESTADO: ${phaseLabel} · 4 MESAS · 4 RECIPIENTES`, 54, 480);
@@ -126,11 +140,24 @@ export function drawHud(canvas, state, now = performance.now()) {
 		context.fillText(`${category.label}  ${count}/5  ·  FALTAN ${5 - count}`, 98, y);
 	}
 
+	for (const [index, category] of categories.entries()) {
+		const finishMs = state.score.binFinishMs[category.id];
+		const y = 746 + index * 58;
+		context.fillStyle = finishMs === null ? '#9aadb1' : '#a9f0d1';
+		context.font = '600 18px system-ui, sans-serif';
+		context.fillText(finishMs === null ? 'TIEMPO DEL RECIPIENTE: PENDIENTE' : `RECIPIENTE COMPLETO: ${formatTime(finishMs)}`, 98, y);
+	}
+
+	context.fillStyle = '#d9e4df';
+	context.font = '700 24px system-ui, sans-serif';
+	context.fillText(`INTENTOS CONFIRMADOS: ${state.score.attempts}`, 54, 965);
+	context.fillText(`ERRORES: ${state.score.errors}     PRECISION: ${getAccuracy(state).toFixed(1)}%`, 54, 1005);
+
 	if (state.phase !== 'complete') {
 		const messageColor = state.ui.kind === 'error' ? '#ff8d88' : state.ui.kind === 'success' ? '#a9f0d1' : '#dce6e3';
 		context.fillStyle = messageColor;
 		context.font = '700 27px system-ui, sans-serif';
-		wrapText(context, state.ui.message, 54, 990, width - 108, 38, 3);
+		wrapText(context, state.ui.message, 54, 1050, width - 108, 32, 2);
 	}
 
 	return true;

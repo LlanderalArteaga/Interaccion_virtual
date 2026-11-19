@@ -19,6 +19,12 @@ export class FeedbackAudio {
 		this.#tone(190, 0.12, 'triangle', 0.025, 0);
 	}
 
+	playFinish() {
+		this.#tone(523.25, 0.16, 'sine', 0.045, 0);
+		this.#tone(659.25, 0.16, 'sine', 0.045, 0.13);
+		this.#tone(783.99, 0.24, 'sine', 0.05, 0.26);
+	}
+
 	dispose() {
 		this.context?.close();
 	}

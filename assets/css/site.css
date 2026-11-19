@@ -59,6 +59,8 @@ h1 span { color: var(--teal); }
 }
 #webxr-entry-slot button:hover, #webxr-entry-slot a:hover { background: #c5f8e2 !important; }
 #webxr-entry-slot button:focus-visible, #webxr-entry-slot a:focus-visible { outline: 3px solid #fff !important; outline-offset: 4px; }
+#reset-lab-button { min-height: 3.15rem; border-radius: 999px; font-weight: 750; }
+#reset-lab-button:focus-visible { outline: 3px solid var(--teal); outline-offset: 4px; }
 .small-status { margin: .8rem 0 0; color: var(--muted); font-size: .8rem; }
 .preview-card { overflow: hidden; border: 1px solid var(--line); border-radius: 1rem; background: #0b1116; box-shadow: 0 32px 90px rgba(0, 0, 0, .22); }
 .preview-heading { display: flex; justify-content: space-between; padding: 1rem 1.15rem .2rem; color: #c8d3d3; font-size: .66rem; font-weight: 800; letter-spacing: .15em; }

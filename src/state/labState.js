@@ -7,6 +7,16 @@ export const LAB_CONFIG = Object.freeze({
 	messageDurationMs: 2400
 });
 
+const CATEGORY_IDS = Object.freeze(['cube', 'sphere', 'pyramid', 'hex-prism']);
+
+function createEmptyScore() {
+	return {
+		attempts: 0,
+		errors: 0,
+		binFinishMs: Object.fromEntries(CATEGORY_IDS.map(id => [id, null]))
+	};
+}
+
 export function createLabState() {
 	return {
 		phase: 'ready',
@@ -16,11 +26,24 @@ export function createLabState() {
 		selectedPieceId: null,
 		selectedBy: null,
 		dragDistance: 0,
+		score: createEmptyScore(),
 		xr: { session: null, supported: false, supportChecked: false },
 		hands: { left: false, right: false, count: 0 },
 		timer: { elapsedMs: 0, running: false, lastTick: 0 },
 		ui: { message: 'Entra a VR, muestra tus manos y clasifica las veinte figuras.', kind: 'info', revision: 0, errorTargetId: null, errorPieceId: null, errorUntil: 0 }
 	};
+}
+
+export function resetScore(state) {
+	state.score = createEmptyScore();
+}
+
+export function getCategoryProgress(state, categoryId) {
+	return state.pieces.reduce((total, piece) => total + (piece.categoryId === categoryId && piece.classified ? 1 : 0), 0);
+}
+
+export function getAccuracy(state) {
+	return state.score.attempts === 0 ? 0 : (getProgress(state) / state.score.attempts) * 100;
 }
 
 export function getProgress(state) {

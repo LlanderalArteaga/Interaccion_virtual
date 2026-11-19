@@ -13,7 +13,8 @@ const elements = {
 	entrySlot: document.querySelector('#webxr-entry-slot'),
 	compatibilityStatus: document.querySelector('#compatibility-status'),
 	browserMessage: document.querySelector('#browser-message'),
-	loading: document.querySelector('#loading-state')
+	loading: document.querySelector('#loading-state'),
+	resetButton: document.querySelector('#reset-lab-button')
 };
 
 let app;
@@ -23,6 +24,7 @@ let interaction;
 let audio;
 let celebration;
 let sessionControls;
+let landingResetHandler;
 let previousHandCount = -1;
 let lastHudUpdateAt = 0;
 let lastHudRevision = -1;
@@ -51,9 +53,12 @@ try {
 	panel = createVrPanel(app.scene, {
 		getState: () => state,
 		reset: () => interaction.reset(performance.now()),
+		begin: () => interaction.startChallenge(performance.now()),
 		exit: () => state.xr.session?.end().catch(error => setMessage(state, `No se pudo finalizar la sesión VR: ${error.message}`, 'error'))
 	});
 	interaction = new InteractionController(state, panel, audio, app.physicsWorld, app.resetLayout);
+	landingResetHandler = () => interaction.reset(performance.now());
+	elements.resetButton?.addEventListener('click', landingResetHandler);
 	handTracking = new HandTracking(app.scene, state, side => interaction.onTrackingLost(side));
 
 	sessionControls = createSessionControls(app.renderer, state, elements, {
@@ -152,6 +157,7 @@ function disposeApp() {
 	handTracking?.dispose();
 	panel?.dispose();
 	celebration?.dispose();
+	elements.resetButton?.removeEventListener('click', landingResetHandler);
 	audio?.dispose();
 	app?.disposeLayout();
 	if (app?.scene) disposeSceneResources(app.scene);

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CANNON } from '../physics/physicsWorld.js';
-import { formatTime, getElapsedMs, getProgress, LAB_CONFIG, setMessage } from '../state/labState.js';
+import { formatTime, getCategoryProgress, getElapsedMs, getProgress, LAB_CONFIG, resetScore, setMessage } from '../state/labState.js';
 
 const THROW_SPEED_LIMIT = 4.2;
 const REST_LINEAR_SPEED = 0.17;
@@ -59,6 +59,7 @@ export class InteractionController {
 				}
 				continue;
 			}
+			if (this.state.phase !== 'active') continue;
 
 			const pieceHit = this.#findPieceHit();
 			if (!pieceHit) continue;
@@ -73,19 +74,27 @@ export class InteractionController {
 	}
 
 	startSession(now) {
-		this.state.phase = this.state.phase === 'complete' ? 'complete' : 'active';
+		this.state.phase = this.state.phase === 'complete' ? 'complete' : this.state.timer.elapsedMs > 0 ? 'paused' : 'ready';
 		if (this.state.phase !== 'complete') {
-			this.state.timer.running = true;
+			this.state.timer.running = false;
 			this.state.timer.lastTick = now;
 			setMessage(this.state, this.state.hands.count ? 'Haz pinza para tomar una figura; al soltarla, la gravedad y las colisiones actúan.' : 'Muestra tus manos para comenzar.', 'info', now);
 		}
+	}
+
+	startChallenge(now = performance.now()) {
+		if (!this.state.xr.session || this.state.phase === 'complete' || this.state.phase === 'active') return;
+		this.state.phase = 'active';
+		this.state.timer.lastTick = now;
+		this.state.timer.running = true;
+		setMessage(this.state, 'Partida iniciada. Clasifica las veinte figuras.', 'info', now);
 	}
 
 	endSession(now) {
 		this.#pauseTimer(now);
 		this.#releaseForTrackingLoss();
 		if (this.state.phase !== 'complete') {
-			this.state.phase = 'active';
+			this.state.phase = this.state.timer.elapsedMs > 0 ? 'paused' : 'ready';
 			setMessage(this.state, 'Sesión pausada. Vuelve a entrar a VR para continuar.', 'info', now);
 		}
 		this.#setHoverState(null, null);
@@ -100,10 +109,11 @@ export class InteractionController {
 	reset(now = performance.now()) {
 		this.#releaseForTrackingLoss();
 		this.resetLayout();
-		this.state.phase = this.state.xr.session ? 'active' : 'ready';
+		this.state.phase = 'ready';
 		this.state.timer.elapsedMs = 0;
-		this.state.timer.running = Boolean(this.state.xr.session);
+		this.state.timer.running = false;
 		this.state.timer.lastTick = now;
+		resetScore(this.state);
 		this.state.ui.errorTargetId = null;
 		this.state.ui.errorPieceId = null;
 		this.state.ui.errorUntil = 0;
@@ -223,6 +233,7 @@ export class InteractionController {
 	}
 
 	checkWrongBinSettling(now) {
+		if (this.state.phase !== 'active') return;
 		for (const piece of this.state.pieces) {
 			if (piece.classified || piece.status === 'held' || piece.status === 'available') continue;
 			const bin = this.#findContainingBin(piece);
@@ -234,9 +245,11 @@ export class InteractionController {
 				&& piece.body.angularVelocity.length() <= angularLimit;
 			if (!isSettled) {
 				piece.restingSince = null;
+				if (piece.status !== 'error') piece.status = 'released';
 				continue;
 			}
 			piece.restingSince ??= now;
+			if (piece.status !== 'error') piece.status = 'stabilizing';
 			if (now - piece.restingSince < confirmMs) continue;
 			if (bin?.id === piece.assignedBinId) {
 				this.#classifyPiece(piece, now);
@@ -244,9 +257,16 @@ export class InteractionController {
 			}
 			// El aviso de error se muestra una sola vez, pero la pieza se sigue
 			// evaluando: puede terminar de asentarse dentro de su recipiente.
-			if (piece.wrongFeedbackShown) continue;
-			piece.status = 'error';
+			if (piece.wrongFeedbackShown) {
+				piece.status = bin ? 'error' : piece.body.position.y < 0.24 ? 'recoverable' : 'error';
+				continue;
+			}
+			piece.status = bin ? 'error' : piece.body.position.y < 0.24 ? 'recoverable' : 'error';
 			piece.wrongFeedbackShown = true;
+			if (bin) {
+				this.state.score.attempts += 1;
+				this.state.score.errors += 1;
+			}
 			piece.material.emissive.set('#9b2929');
 			this.audio.playError();
 			const locationMessage = bin
@@ -293,10 +313,16 @@ export class InteractionController {
 		piece.body.velocity.set(0, 0, 0);
 		piece.body.angularVelocity.set(0, 0, 0);
 		this.#setBodyType(piece.body, CANNON.Body.STATIC, 0);
-		this.audio.playSuccess();
+		this.state.score.attempts += 1;
 		const progress = getProgress(this.state);
+		if (progress === this.state.pieces.length) this.audio.playFinish();
+		else this.audio.playSuccess();
+		if (progress === this.state.pieces.length) this.advanceTimer(now);
+		const elapsedMs = getElapsedMs(this.state, now);
+		if (getCategoryProgress(this.state, piece.categoryId) === 5 && this.state.score.binFinishMs[piece.categoryId] === null) {
+			this.state.score.binFinishMs[piece.categoryId] = elapsedMs;
+		}
 		if (progress === this.state.pieces.length) {
-			this.advanceTimer(now);
 			this.state.timer.running = false;
 			this.state.phase = 'complete';
 			setMessage(this.state, `Laboratorio completado en ${formatTime(getElapsedMs(this.state, now))}. Clasificaste las veinte figuras.`, 'success', now);

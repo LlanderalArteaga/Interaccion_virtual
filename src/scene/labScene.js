@@ -59,6 +59,23 @@ export function createLabScene(previewElement) {
 	const stations = createStations(scene, physicsWorld, physicsMaterials.surface);
 	const bins = createBins(scene, physicsWorld, physicsMaterials.surface);
 	const pieces = createPieces(scene, physicsWorld, physicsMaterials.object);
+	let previousLayoutSignature = '';
+	const resetLayout = () => {
+		let signature = '';
+		let attempts = 0;
+		do {
+			resetPieceLayout(pieces, stations);
+			signature = getLayoutSignature(pieces);
+			attempts += 1;
+		} while (signature === previousLayoutSignature && attempts < 4);
+		if (signature === previousLayoutSignature) {
+			const firstPiece = pieces[0];
+			firstPiece.startPosition.x += 0.01;
+			resetDynamicBody(firstPiece.body, firstPiece.startPosition, firstPiece.startQuaternion);
+			signature = getLayoutSignature(pieces);
+		}
+		previousLayoutSignature = signature;
+	};
 	const resizeObserver = new ResizeObserver(() => {
 		const width = Math.max(1, previewElement.clientWidth);
 		const height = Math.max(1, previewElement.clientHeight);
@@ -75,10 +92,10 @@ export function createLabScene(previewElement) {
 			syncPhysicsMeshes(pieces);
 			updateRecoveryMarkers(pieces);
 		},
-		resetLayout() { resetPieceLayout(pieces, stations); },
+		resetLayout,
 		disposeLayout() { resizeObserver.disconnect(); }
 	};
-	resetPieceLayout(pieces, stations);
+	resetLayout();
 	return app;
 }
 
@@ -349,4 +366,12 @@ function shuffle(items) {
 		[items[index], items[swapIndex]] = [items[swapIndex], items[index]];
 	}
 	return items;
+}
+
+function getLayoutSignature(pieces) {
+	return pieces
+		.slice()
+		.sort((first, second) => first.id.localeCompare(second.id))
+		.map(piece => `${piece.id}:${piece.homeTableId}:${piece.startPosition.x.toFixed(3)},${piece.startPosition.z.toFixed(3)},${piece.startQuaternion.y.toFixed(3)},${piece.startQuaternion.w.toFixed(3)}`)
+		.join('|');
 }

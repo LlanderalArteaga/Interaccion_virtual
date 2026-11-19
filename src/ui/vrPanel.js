@@ -15,8 +15,9 @@ export function createVrPanel(scene, actions) {
 	group.lookAt(0, 1.42, 0);
 
 	const controls = [
-		createControl('reset', 'REINICIAR', -0.17, 0x2f5961, actions.reset),
-		createControl('exit', 'SALIR DE VR', 0.17, 0x73484a, actions.exit)
+		createControl('reset', 'REINICIAR', -0.25, 0x2f5961, actions.reset),
+		createControl('begin', getBeginLabel(actions.getState()), 0, 0x376f58, actions.begin),
+		createControl('exit', 'SALIR DE VR', 0.25, 0x73484a, actions.exit)
 	];
 	for (const control of controls) group.add(control.group);
 	scene.add(group);
@@ -25,10 +26,17 @@ export function createVrPanel(scene, actions) {
 	let lastTimeSecond = -1;
 	let lastProgressSignature = '';
 	let hoveredControlId = null;
+	let lastBeginLabel = getBeginLabel(actions.getState());
 	return {
 		group,
 		controls: controls.map(control => control.hitMesh),
 		update(state, now) {
+			const beginLabel = getBeginLabel(state);
+			if (beginLabel !== lastBeginLabel) {
+				const beginControl = controls.find(control => control.id === 'begin');
+				updateTextPlane(beginControl.label, beginLabel);
+				lastBeginLabel = beginLabel;
+			}
 			const timeSecond = Math.floor(now / 1000);
 			const progressSignature = state.pieces.map(piece => piece.classified ? '1' : '0').join('');
 			if (lastRevision !== state.ui.revision || lastTimeSecond !== timeSecond || lastProgressSignature !== progressSignature) {
@@ -67,15 +75,37 @@ export function createVrPanel(scene, actions) {
 function createControl(id, label, x, color, action) {
 	const group = new THREE.Group();
 	group.position.set(x, -0.37, 0.018);
+	const buttonWidth = 0.22;
 	const hitMesh = new THREE.Mesh(
-		new THREE.BoxGeometry(0.28, 0.09, 0.035),
+		new THREE.BoxGeometry(buttonWidth, 0.09, 0.035),
 		new THREE.MeshStandardMaterial({ color, roughness: 0.48, metalness: 0.08 })
 	);
 	hitMesh.userData.controlId = id;
 	hitMesh.userData.action = action;
 	group.add(hitMesh);
-	const labelPlane = createTextPlane(label, { worldWidth: 0.25, worldHeight: 0.065, width: 512, height: 128, fontSize: 38, background: 'rgba(0,0,0,0)', color: '#f6fbf8' });
+	const labelPlane = createTextPlane(label, { worldWidth: buttonWidth - 0.012, worldHeight: 0.065, width: 512, height: 128, fontSize: 34, background: 'rgba(0,0,0,0)', color: '#f6fbf8' });
 	labelPlane.position.z = 0.022;
 	group.add(labelPlane);
 	return { id, group, hitMesh, label: labelPlane, baseColor: `#${color.toString(16).padStart(6, '0')}`, action };
+}
+
+function getBeginLabel(state) {
+	if (state.phase === 'active') return 'EN CURSO';
+	if (state.phase === 'paused') return 'REANUDAR';
+	if (state.phase === 'complete') return 'FINALIZADO';
+	return 'COMENZAR';
+}
+
+function updateTextPlane(mesh, text) {
+	const canvas = mesh.userData.canvas;
+	const context = canvas.getContext('2d');
+	context.clearRect(0, 0, canvas.width, canvas.height);
+	context.fillStyle = 'rgba(0, 0, 0, 0)';
+	context.fillRect(0, 0, canvas.width, canvas.height);
+	context.fillStyle = '#f6fbf8';
+	context.font = '700 34px system-ui, sans-serif';
+	context.textAlign = 'center';
+	context.textBaseline = 'middle';
+	context.fillText(text, canvas.width / 2, canvas.height / 2, canvas.width - 28);
+	mesh.userData.texture.needsUpdate = true;
 }
