@@ -183,8 +183,8 @@ function createBins(scene, world, surfaceMaterial) {
 		const group = new THREE.Group();
 		group.position.set(position.x, 0, position.z);
 		const standMaterial = new THREE.MeshStandardMaterial({ color: '#283940', roughness: 0.78 });
-		const innerHalf = category.id === 'pyramid' ? 0.115 : 0.19;
-		const wallHeight = category.id === 'pyramid' ? 0.27 : 0.38;
+		const innerHalf = category.id === 'pyramid' ? 0.17 : 0.19;
+		const wallHeight = category.id === 'pyramid' ? 0.36 : 0.38;
 		const wallThickness = 0.025;
 		const outerHalf = innerHalf + wallThickness;
 		const standSize = outerHalf * 2 + 0.04;

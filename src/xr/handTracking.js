@@ -71,19 +71,21 @@ export class HandTracking {
 			const rayPose = inputSource.targetRaySpace ? xrFrame.getPose(inputSource.targetRaySpace, referenceSpace) : null;
 			const rayOrigin = new THREE.Vector3();
 			const rayDirection = new THREE.Vector3();
+			const rayOrientation = new THREE.Quaternion();
 			let rayValid = false;
 			if (rayPose) {
 				rayOrigin.set(rayPose.transform.position.x, rayPose.transform.position.y, rayPose.transform.position.z);
-				const orientation = new THREE.Quaternion(rayPose.transform.orientation.x, rayPose.transform.orientation.y, rayPose.transform.orientation.z, rayPose.transform.orientation.w);
-				rayDirection.set(0, 0, -1).applyQuaternion(orientation).normalize();
-				visual.ray.quaternion.copy(orientation);
+				rayOrientation.set(rayPose.transform.orientation.x, rayPose.transform.orientation.y, rayPose.transform.orientation.z, rayPose.transform.orientation.w);
+				rayDirection.set(0, 0, -1).applyQuaternion(rayOrientation).normalize();
+				visual.ray.quaternion.copy(rayOrientation);
 				visual.ray.position.copy(rayOrigin);
 				rayValid = true;
 			} else if (indexTip && indexDistal) {
 				rayOrigin.copy(indexTip);
 				rayDirection.copy(indexTip).sub(indexDistal).normalize();
+				rayOrientation.setFromUnitVectors(new THREE.Vector3(0, 0, -1), rayDirection);
 				visual.ray.position.copy(rayOrigin);
-				visual.ray.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), rayDirection);
+				visual.ray.quaternion.copy(rayOrientation);
 				rayValid = rayDirection.lengthSq() > 0.5;
 			}
 			visual.ray.visible = rayValid;
@@ -102,6 +104,7 @@ export class HandTracking {
 				tracked: true,
 				rayValid,
 				ray: new THREE.Ray(rayOrigin.clone(), rayDirection.clone()),
+				handOrientation: jointData.orientations.get('wrist')?.clone() ?? (rayValid ? rayOrientation.clone() : null),
 				pinching,
 				pinchStarted: !previous.pinching && pinching,
 				pinchEnded: previous.pinching && !pinching,
@@ -194,6 +197,7 @@ function createHandVisual(scene, color) {
 
 function readJoints(xrFrame, hand, referenceSpace) {
 	const positions = new Map();
+	const orientations = new Map();
 	for (const jointName of JOINT_NAMES) {
 		const jointSpace = hand.get(jointName);
 		if (!jointSpace) continue;
@@ -201,8 +205,10 @@ function readJoints(xrFrame, hand, referenceSpace) {
 		if (!pose) continue;
 		const point = pose.transform.position;
 		positions.set(jointName, new THREE.Vector3(point.x, point.y, point.z));
+		const rotation = pose.transform.orientation;
+		orientations.set(jointName, new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w));
 	}
-	return { positions };
+	return { positions, orientations };
 }
 
 function updateJointVisual(visual, positions) {

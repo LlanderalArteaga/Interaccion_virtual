@@ -6,6 +6,7 @@ const THROW_SPEED_LIMIT = 4.2;
 const REST_LINEAR_SPEED = 0.17;
 const REST_ANGULAR_SPEED = 0.32;
 const REST_CONFIRM_MS = 700;
+const THROW_ANGULAR_SPEED_LIMIT = 7;
 
 export class InteractionController {
 	constructor(state, panel, audio, physicsWorld, resetLayout) {
@@ -23,6 +24,12 @@ export class InteractionController {
 		this.previousDragPosition = new THREE.Vector3();
 		this.frameVelocity = new THREE.Vector3();
 		this.dragVelocity = new THREE.Vector3();
+		this.dragAngularVelocity = new THREE.Vector3();
+		this.grabRotationOffset = new THREE.Quaternion();
+		this.nextQuaternion = new THREE.Quaternion();
+		this.previousHeldQuaternion = new THREE.Quaternion();
+		this.rotationDeltaQuaternion = new THREE.Quaternion();
+		this.rotationAxis = new THREE.Vector3();
 		this.lastDragTime = 0;
 		this.hoveredPieceId = null;
 	}
@@ -143,6 +150,13 @@ export class InteractionController {
 		hand.ray.at(THREE.MathUtils.clamp(hit.distance, LAB_CONFIG.grabDistanceMin, LAB_CONFIG.grabDistanceMax), this.grabPoint);
 		this.state.dragDistance = this.grabPoint.distanceTo(hand.ray.origin);
 		this.grabOffset.set(piece.body.position.x, piece.body.position.y, piece.body.position.z).sub(this.grabPoint);
+		this.previousHeldQuaternion.set(piece.body.quaternion.x, piece.body.quaternion.y, piece.body.quaternion.z, piece.body.quaternion.w);
+		this.dragAngularVelocity.set(0, 0, 0);
+		if (hand.handOrientation) {
+			this.grabRotationOffset.copy(hand.handOrientation).invert().multiply(this.previousHeldQuaternion);
+		} else {
+			this.grabRotationOffset.identity();
+		}
 		this.previousDragPosition.set(piece.body.position.x, piece.body.position.y, piece.body.position.z);
 		this.dragVelocity.set(0, 0, 0);
 		this.lastDragTime = now;
@@ -159,6 +173,7 @@ export class InteractionController {
 		this.nextPosition.z = THREE.MathUtils.clamp(this.nextPosition.z, -2.05, 2.05);
 		this.#keepHeldPieceAboveTables(piece);
 		const deltaSeconds = (now - this.lastDragTime) / 1000;
+		this.#moveHeldRotation(piece, hand, deltaSeconds);
 		if (deltaSeconds > 0 && deltaSeconds <= 0.1) {
 			this.frameVelocity.copy(this.nextPosition).sub(this.previousDragPosition)
 				.multiplyScalar(1 / deltaSeconds)
@@ -181,7 +196,7 @@ export class InteractionController {
 		if (!piece || piece.classified) return;
 		this.#setBodyType(piece.body, CANNON.Body.DYNAMIC, piece.massKg);
 		piece.body.velocity.set(this.dragVelocity.x, this.dragVelocity.y, this.dragVelocity.z);
-		piece.body.angularVelocity.set(0, 0, 0);
+		piece.body.angularVelocity.set(this.dragAngularVelocity.x, this.dragAngularVelocity.y, this.dragAngularVelocity.z);
 		piece.body.aabbNeedsUpdate = true;
 		piece.body.wakeUp();
 		piece.status = 'released';
@@ -195,7 +210,7 @@ export class InteractionController {
 		if (piece && !piece.classified) {
 			this.#setBodyType(piece.body, CANNON.Body.DYNAMIC, piece.massKg);
 			piece.body.velocity.set(this.dragVelocity.x, this.dragVelocity.y, this.dragVelocity.z);
-			piece.body.angularVelocity.set(0, 0, 0);
+			piece.body.angularVelocity.set(this.dragAngularVelocity.x, this.dragAngularVelocity.y, this.dragAngularVelocity.z);
 			piece.body.aabbNeedsUpdate = true;
 			piece.body.wakeUp();
 			piece.status = 'released';
@@ -240,8 +255,10 @@ export class InteractionController {
 			const centerAllowance = Math.max(0.015, bin.innerHalf - piece.boundingRadius * 0.55);
 			const insideFootprint = Math.abs(x - bin.position.x) <= centerAllowance
 				&& Math.abs(z - bin.position.z) <= centerAllowance;
+			// Valida el centro y la base: permite piezas apiladas dentro de la caja,
+			// pero rechaza las que descansan sobre el borde o por encima de la boca.
 			const insideHeight = y - piece.halfHeight >= bin.floorY - 0.025
-				&& y + piece.halfHeight <= bin.floorY + bin.wallHeight + 0.025;
+				&& y <= bin.floorY + bin.wallHeight - piece.halfHeight * 0.25;
 			return insideFootprint && insideHeight;
 		});
 	}
@@ -278,6 +295,39 @@ export class InteractionController {
 			const minimumCenterY = table.topY + piece.halfHeight + 0.006;
 			if (this.nextPosition.y < minimumCenterY) this.nextPosition.y = minimumCenterY;
 		}
+	}
+
+	#moveHeldRotation(piece, hand, deltaSeconds) {
+		if (!hand.handOrientation) return;
+		this.nextQuaternion.copy(hand.handOrientation).multiply(this.grabRotationOffset).normalize();
+		if (deltaSeconds > 0 && deltaSeconds <= 0.1) {
+			this.rotationDeltaQuaternion.copy(this.previousHeldQuaternion).invert().multiply(this.nextQuaternion).normalize();
+			if (this.rotationDeltaQuaternion.w < 0) {
+				this.rotationDeltaQuaternion.set(
+					-this.rotationDeltaQuaternion.x,
+					-this.rotationDeltaQuaternion.y,
+					-this.rotationDeltaQuaternion.z,
+					-this.rotationDeltaQuaternion.w
+				);
+			}
+			const halfAngle = Math.acos(THREE.MathUtils.clamp(this.rotationDeltaQuaternion.w, -1, 1));
+			const sinHalfAngle = Math.sin(halfAngle);
+			if (sinHalfAngle > 0.0001) {
+				this.rotationAxis.set(
+					this.rotationDeltaQuaternion.x / sinHalfAngle,
+					this.rotationDeltaQuaternion.y / sinHalfAngle,
+					this.rotationDeltaQuaternion.z / sinHalfAngle
+				).multiplyScalar((halfAngle * 2) / deltaSeconds);
+				this.dragAngularVelocity.copy(this.rotationAxis).clampLength(0, THROW_ANGULAR_SPEED_LIMIT);
+			} else {
+				this.dragAngularVelocity.set(0, 0, 0);
+			}
+		} else {
+			this.dragAngularVelocity.set(0, 0, 0);
+		}
+		piece.body.quaternion.set(this.nextQuaternion.x, this.nextQuaternion.y, this.nextQuaternion.z, this.nextQuaternion.w);
+		piece.body.aabbNeedsUpdate = true;
+		this.previousHeldQuaternion.copy(this.nextQuaternion);
 	}
 
 	#setBodyType(body, type, mass) {
