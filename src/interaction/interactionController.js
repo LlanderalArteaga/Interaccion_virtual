@@ -6,6 +6,7 @@ const THROW_SPEED_LIMIT = 4.2;
 const REST_LINEAR_SPEED = 0.17;
 const REST_ANGULAR_SPEED = 0.32;
 const REST_CONFIRM_MS = 700;
+const PYRAMID_REST_PROFILE = Object.freeze({ linearSpeed: 0.22, angularSpeed: 0.58, confirmMs: 520 });
 const THROW_ANGULAR_SPEED_LIMIT = 7;
 
 export class InteractionController {
@@ -225,14 +226,18 @@ export class InteractionController {
 		for (const piece of this.state.pieces) {
 			if (piece.classified || piece.status === 'held' || piece.status === 'available') continue;
 			const bin = this.#findContainingBin(piece);
-			const isSettled = piece.body.velocity.length() <= REST_LINEAR_SPEED
-				&& piece.body.angularVelocity.length() <= REST_ANGULAR_SPEED;
+			const pyramidProfile = piece.categoryId === 'pyramid' ? PYRAMID_REST_PROFILE : null;
+			const linearLimit = pyramidProfile?.linearSpeed ?? REST_LINEAR_SPEED;
+			const angularLimit = pyramidProfile?.angularSpeed ?? REST_ANGULAR_SPEED;
+			const confirmMs = pyramidProfile?.confirmMs ?? REST_CONFIRM_MS;
+			const isSettled = piece.body.velocity.length() <= linearLimit
+				&& piece.body.angularVelocity.length() <= angularLimit;
 			if (!isSettled) {
 				piece.restingSince = null;
 				continue;
 			}
 			piece.restingSince ??= now;
-			if (now - piece.restingSince < REST_CONFIRM_MS) continue;
+			if (now - piece.restingSince < confirmMs) continue;
 			if (bin?.id === piece.assignedBinId) {
 				this.#classifyPiece(piece, now);
 				continue;

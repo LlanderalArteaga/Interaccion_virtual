@@ -5,6 +5,7 @@ import { createSessionControls } from './xr/session.js';
 import { InteractionController } from './interaction/interactionController.js';
 import { createVrPanel } from './ui/vrPanel.js';
 import { FeedbackAudio } from './audio/feedback.js';
+import { createCelebration } from './effects/celebration.js';
 
 const state = createLabState();
 const elements = {
@@ -20,6 +21,7 @@ let handTracking;
 let panel;
 let interaction;
 let audio;
+let celebration;
 let sessionControls;
 let previousHandCount = -1;
 let lastHudUpdateAt = 0;
@@ -40,6 +42,7 @@ window.addEventListener('unhandledrejection', event => {
 
 try {
 	app = createLabScene(elements.preview);
+	celebration = createCelebration(app.scene);
 	state.pieces = app.pieces;
 	state.bins = app.bins;
 	state.tables = app.stations;
@@ -125,6 +128,7 @@ function renderFrame(_time, xrFrame) {
 	}
 
 	panel.group.visible = Boolean(session);
+	celebration?.update(state.phase, now);
 	if (now - lastHudUpdateAt >= 200 || state.ui.revision !== lastHudRevision) {
 		panel.update(state, now);
 		lastHudUpdateAt = now;
@@ -147,6 +151,7 @@ function disposeApp() {
 	sessionControls?.dispose();
 	handTracking?.dispose();
 	panel?.dispose();
+	celebration?.dispose();
 	audio?.dispose();
 	app?.disposeLayout();
 	if (app?.scene) disposeSceneResources(app.scene);

@@ -115,9 +115,18 @@ export function drawHud(canvas, state, now = performance.now()) {
 	wrapText(context, state.ui.message, 54, 990, width - 108, 38, 3);
 
 	if (state.phase === 'complete') {
+		context.fillStyle = 'rgba(169, 240, 209, 0.12)';
+		context.fillRect(42, 1080, width - 84, 142);
+		context.strokeStyle = 'rgba(169, 240, 209, 0.72)';
+		context.lineWidth = 3;
+		context.strokeRect(42, 1080, width - 84, 142);
+		context.textAlign = 'center';
 		context.fillStyle = '#a9f0d1';
-		context.font = '700 27px system-ui, sans-serif';
-		context.fillText(`TIEMPO FINAL  ${formatTime(getElapsedMs(state, now))}`, 54, 1160);
+		context.font = '700 30px system-ui, sans-serif';
+		context.fillText('¡RETO COMPLETADO!', width / 2, 1128);
+		context.fillStyle = '#f2f1eb';
+		context.font = '700 42px ui-monospace, monospace';
+		context.fillText(`TU TIEMPO  ${formatTime(getElapsedMs(state, now))}`, width / 2, 1185);
 	}
 
 	return true;
