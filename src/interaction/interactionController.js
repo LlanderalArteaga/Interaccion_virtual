@@ -252,13 +252,14 @@ export class InteractionController {
 	#findContainingBin(piece) {
 		const { x, y, z } = piece.body.position;
 		return this.state.bins.find(bin => {
-			const centerAllowance = Math.max(0.01, bin.innerHalf - piece.boundingRadius * 0.9);
+			const centerAllowance = bin.innerHalf - 0.008;
 			const insideFootprint = Math.abs(x - bin.position.x) <= centerAllowance
 				&& Math.abs(z - bin.position.z) <= centerAllowance;
-			// Valida el centro y la base: permite piezas apiladas dentro de la caja,
-			// pero rechaza las que descansan sobre el borde o por encima de la boca.
-			const insideHeight = y - piece.halfHeight >= bin.floorY - 0.025
-				&& y <= bin.floorY + bin.wallHeight - piece.halfHeight * 0.25;
+			// La pieza puede sobresalir al apilarse, siempre que su base siga bajo el borde.
+			// Una pieza apoyada encima del recipiente queda fuera porque su base está a la altura del borde.
+			const lowerExtent = y - piece.halfHeight;
+			const insideHeight = lowerExtent >= bin.floorY - 0.025
+				&& lowerExtent < bin.floorY + bin.wallHeight - 0.015;
 			return insideFootprint && insideHeight;
 		});
 	}
