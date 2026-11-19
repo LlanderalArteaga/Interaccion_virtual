@@ -254,7 +254,7 @@ export class InteractionController {
 
 	#findContainingBin(piece) {
 		const { x, y, z } = piece.body.position;
-		piece.body.computeAABB();
+		piece.body.updateAABB();
 		const pieceBottom = piece.body.aabb.lowerBound.y;
 		return this.state.bins.find(bin => {
 			// El margen contempla el contacto lateral sin aceptar piezas fuera de la caja.
@@ -265,7 +265,7 @@ export class InteractionController {
 			const belowRim = pieceBottom < bin.floorY + bin.wallHeight - 0.015;
 			const restingOnAcceptedPiece = this.state.pieces.some(support => {
 				if (support.id === piece.id || !support.classified || support.assignedBinId !== bin.id) return false;
-				support.body.computeAABB();
+				support.body.updateAABB();
 				const horizontalDistance = Math.hypot(x - support.body.position.x, z - support.body.position.z);
 				const supportTop = support.body.aabb.upperBound.y;
 				return horizontalDistance <= (piece.boundingRadius + support.boundingRadius) * 1.35
