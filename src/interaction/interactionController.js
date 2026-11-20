@@ -3,11 +3,20 @@ import { CANNON } from '../physics/physicsWorld.js';
 import { formatTime, getCategoryProgress, getElapsedMs, getProgress, LAB_CONFIG, resetScore, setMessage } from '../state/labState.js';
 
 const THROW_SPEED_LIMIT = 4.2;
+const HELD_LINEAR_SPEED_LIMIT = 1.15;
 const REST_LINEAR_SPEED = 0.17;
 const REST_ANGULAR_SPEED = 0.32;
 const REST_CONFIRM_MS = 700;
 const PYRAMID_REST_PROFILE = Object.freeze({ linearSpeed: 0.22, angularSpeed: 0.58, confirmMs: 520 });
 const THROW_ANGULAR_SPEED_LIMIT = 7;
+
+function limitBodyVector(vector, maximumLength) {
+	const length = vector.length();
+	if (length > maximumLength) {
+		const scale = maximumLength / length;
+		vector.set(vector.x * scale, vector.y * scale, vector.z * scale);
+	}
+}
 
 export class InteractionController {
 	constructor(state, panel, audio, physicsWorld, resetLayout) {
@@ -22,7 +31,6 @@ export class InteractionController {
 		this.grabOffset = new THREE.Vector3();
 		this.grabPoint = new THREE.Vector3();
 		this.nextPosition = new THREE.Vector3();
-		this.previousDragPosition = new THREE.Vector3();
 		this.frameVelocity = new THREE.Vector3();
 		this.dragVelocity = new THREE.Vector3();
 		this.dragAngularVelocity = new THREE.Vector3();
@@ -154,7 +162,7 @@ export class InteractionController {
 		piece.status = 'held';
 		piece.restingSince = null;
 		piece.wrongFeedbackShown = false;
-		this.#setBodyType(piece.body, CANNON.Body.KINEMATIC, 0);
+		// El cuerpo permanece dinámico: conserva gravedad y respuesta a colisiones durante el agarre.
 		piece.body.velocity.set(0, 0, 0);
 		piece.body.angularVelocity.set(0, 0, 0);
 		piece.body.wakeUp();
@@ -168,7 +176,6 @@ export class InteractionController {
 		} else {
 			this.grabRotationOffset.identity();
 		}
-		this.previousDragPosition.set(piece.body.position.x, piece.body.position.y, piece.body.position.z);
 		this.dragVelocity.set(0, 0, 0);
 		this.lastDragTime = now;
 		piece.material.emissive.set('#718d62');
@@ -184,19 +191,19 @@ export class InteractionController {
 		this.nextPosition.z = THREE.MathUtils.clamp(this.nextPosition.z, -2.05, 2.05);
 		this.#keepHeldPieceAboveTables(piece);
 		const deltaSeconds = (now - this.lastDragTime) / 1000;
+		const safeDeltaSeconds = THREE.MathUtils.clamp(deltaSeconds, 1 / 120, 0.05);
 		this.#moveHeldRotation(piece, hand, deltaSeconds);
-		if (deltaSeconds > 0 && deltaSeconds <= 0.1) {
-			this.frameVelocity.copy(this.nextPosition).sub(this.previousDragPosition)
-				.multiplyScalar(1 / deltaSeconds)
-				.clampLength(0, THROW_SPEED_LIMIT);
-			this.dragVelocity.lerp(this.frameVelocity, 0.42).clampLength(0, THROW_SPEED_LIMIT);
-		} else {
-			this.dragVelocity.set(0, 0, 0);
-		}
-		piece.body.position.set(this.nextPosition.x, this.nextPosition.y, this.nextPosition.z);
+		// Servo de velocidad: impulsa el cuerpo hacia la mano sin teletransportarlo.
+		// Las paredes y mesas pueden detenerlo mediante el solver físico.
+		this.frameVelocity.set(
+			this.nextPosition.x - piece.body.position.x,
+			this.nextPosition.y - piece.body.position.y,
+			this.nextPosition.z - piece.body.position.z
+		).multiplyScalar(1 / safeDeltaSeconds).clampLength(0, HELD_LINEAR_SPEED_LIMIT);
+		this.dragVelocity.copy(this.frameVelocity);
 		piece.body.velocity.set(this.dragVelocity.x, this.dragVelocity.y, this.dragVelocity.z);
+		piece.body.wakeUp();
 		piece.body.aabbNeedsUpdate = true;
-		this.previousDragPosition.copy(this.nextPosition);
 		this.lastDragTime = now;
 	}
 
@@ -206,8 +213,8 @@ export class InteractionController {
 		this.state.selectedBy = null;
 		if (!piece || piece.classified) return;
 		this.#setBodyType(piece.body, CANNON.Body.DYNAMIC, piece.massKg);
-		piece.body.velocity.set(this.dragVelocity.x, this.dragVelocity.y, this.dragVelocity.z);
-		piece.body.angularVelocity.set(this.dragAngularVelocity.x, this.dragAngularVelocity.y, this.dragAngularVelocity.z);
+		limitBodyVector(piece.body.velocity, THROW_SPEED_LIMIT);
+		limitBodyVector(piece.body.angularVelocity, THROW_ANGULAR_SPEED_LIMIT);
 		piece.body.aabbNeedsUpdate = true;
 		piece.body.wakeUp();
 		piece.status = 'released';
@@ -220,8 +227,8 @@ export class InteractionController {
 		const piece = this.state.pieces.find(item => item.id === this.state.selectedPieceId);
 		if (piece && !piece.classified) {
 			this.#setBodyType(piece.body, CANNON.Body.DYNAMIC, piece.massKg);
-			piece.body.velocity.set(this.dragVelocity.x, this.dragVelocity.y, this.dragVelocity.z);
-			piece.body.angularVelocity.set(this.dragAngularVelocity.x, this.dragAngularVelocity.y, this.dragAngularVelocity.z);
+			limitBodyVector(piece.body.velocity, THROW_SPEED_LIMIT);
+			limitBodyVector(piece.body.angularVelocity, THROW_ANGULAR_SPEED_LIMIT);
 			piece.body.aabbNeedsUpdate = true;
 			piece.body.wakeUp();
 			piece.status = 'released';
@@ -343,9 +350,14 @@ export class InteractionController {
 	}
 
 	#moveHeldRotation(piece, hand, deltaSeconds) {
-		if (!hand.handOrientation) return;
+		if (!hand.handOrientation) {
+			piece.body.angularVelocity.set(0, 0, 0);
+			this.dragAngularVelocity.set(0, 0, 0);
+			return;
+		}
 		this.nextQuaternion.copy(hand.handOrientation).multiply(this.grabRotationOffset).normalize();
 		if (deltaSeconds > 0 && deltaSeconds <= 0.1) {
+			this.previousHeldQuaternion.set(piece.body.quaternion.x, piece.body.quaternion.y, piece.body.quaternion.z, piece.body.quaternion.w);
 			this.rotationDeltaQuaternion.copy(this.previousHeldQuaternion).invert().multiply(this.nextQuaternion).normalize();
 			if (this.rotationDeltaQuaternion.w < 0) {
 				this.rotationDeltaQuaternion.set(
@@ -370,9 +382,8 @@ export class InteractionController {
 		} else {
 			this.dragAngularVelocity.set(0, 0, 0);
 		}
-		piece.body.quaternion.set(this.nextQuaternion.x, this.nextQuaternion.y, this.nextQuaternion.z, this.nextQuaternion.w);
+		piece.body.angularVelocity.set(this.dragAngularVelocity.x, this.dragAngularVelocity.y, this.dragAngularVelocity.z);
 		piece.body.aabbNeedsUpdate = true;
-		this.previousHeldQuaternion.copy(this.nextQuaternion);
 	}
 
 	#setBodyType(body, type, mass) {

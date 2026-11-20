@@ -22,10 +22,11 @@ const CATEGORY_SPECS = Object.freeze([
 ]);
 
 const STATIONS = Object.freeze([
-	{ id: 'north-west', x: 0.33, z: -0.85, rotation: 0 },
-	{ id: 'north-east', x: 1.05, z: -0.85, rotation: 0 },
-	{ id: 'south-west', x: 0.33, z: -1.55, rotation: 0 },
-	{ id: 'south-east', x: 1.05, z: -1.55, rotation: 0 }
+	// Cuatro mesas alineadas de izquierda a derecha, dentro del alcance frontal.
+	{ id: 'row-1', x: -1.38, z: -1.18, rotation: 0 },
+	{ id: 'row-2', x: -0.46, z: -1.18, rotation: 0 },
+	{ id: 'row-3', x: 0.46, z: -1.18, rotation: 0 },
+	{ id: 'row-4', x: 1.38, z: -1.18, rotation: 0 }
 ]);
 
 const OBJECT_SLOTS = Object.freeze([
@@ -41,7 +42,7 @@ export function createLabScene(previewElement) {
 	scene.fog = new THREE.Fog('#526b68', 7, 13);
 	const camera = new THREE.PerspectiveCamera(54, 1, 0.05, 18);
 	camera.position.set(0.1, 1.6, 2.4);
-	camera.lookAt(0.65, 0.7, -1.1);
+	camera.lookAt(0.05, 0.7, -0.9);
 
 	const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
