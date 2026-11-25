@@ -65,7 +65,7 @@ La aplicación conserva una fuente de verdad para el estado de la partida y para
 | `assets/css/site.css` | Estilos responsivos y accesibles de la página inicial. |
 | `assets/icons/favicon.svg` | Favicon local. |
 | `src/main.js` | Crea y conecta los módulos, coordina el ciclo de render y maneja errores y limpieza. |
-| `src/scene/labScene.js` | Construye el escenario, mesas, figuras, recipientes, iluminación y distribución aleatoria. |
+| `src/scene/labScene.js` | Construye el ambiente procedural, mesas, figuras, recipientes, iluminación y distribución aleatoria. |
 | `src/physics/physicsWorld.js` | Configura cannon-es, gravedad, materiales, paso fijo y sincronización entre cuerpos y mallas. |
 | `src/xr/session.js` | Comprueba la compatibilidad e inicia o termina la sesión `immersive-vr`. |
 | `src/xr/handTracking.js` | Obtiene poses de las manos, dibuja su representación y detecta la pinza con histéresis. |
@@ -82,7 +82,7 @@ La física y el renderizado se actualizan desde el ciclo de animación de Three.
 - Se usa cannon-es con gravedad de **−9.82 m/s²**, paso físico de **1/60 s**, hasta cinco subpasos y un solver de 12 iteraciones.
 - Las mesas, el piso, las paredes y los recipientes tienen colisionadores estáticos. Cada recipiente está construido con base y paredes separadas; su boca queda abierta.
 - Cubos y esferas usan colisionadores sencillos. Pirámides y prismas usan formas convexas aproximadas para mantener bajo el costo de cálculo.
-- Al tomar una pieza, su cuerpo permanece dinámico y se guía con una velocidad limitada hacia la mano; no se teletransporta. Así la gravedad y las colisiones con mesas y recipientes siguen activas durante el agarre. Al soltarla conserva el movimiento calculado por la física, con límites de velocidad para reducir sacudidas y penetraciones.
+- Al tomar una pieza, su cuerpo permanece dinámico y un resorte amortiguado la guía hacia una pose de mano suavizada, aplicado en cada paso físico. No se teletransporta ni se desconecta del mundo físico; la gravedad y las colisiones con mesas y recipientes siguen activas durante el agarre. Al soltarla, el motor deja de actuar y la pieza continúa con gravedad y colisiones.
 - Un objeto se valida después de quedar suficientemente quieto. La categoría debe coincidir con el recipiente asignado y el objeto debe estar dentro de su zona útil. No se cuenta solo por tocar el recipiente.
 - Una colocación correcta suma una unidad y bloquea la pieza. Un recipiente equivocado genera un aviso y suma un error una sola vez por intento; la figura puede recuperarse y probarse otra vez.
 - Una pieza fuera de los recipientes no se pierde: el marcador de recuperación ayuda a localizarla y volver a tomarla.

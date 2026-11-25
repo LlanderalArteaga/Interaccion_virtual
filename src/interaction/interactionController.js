@@ -3,7 +3,11 @@ import { CANNON } from '../physics/physicsWorld.js';
 import { formatTime, getCategoryProgress, getElapsedMs, getProgress, LAB_CONFIG, resetScore, setMessage } from '../state/labState.js';
 
 const THROW_SPEED_LIMIT = 4.2;
-const HELD_LINEAR_SPEED_LIMIT = 1.15;
+const HOLD_TARGET_FILTER_RATE = 13;
+const HOLD_SPRING_STIFFNESS = 72;
+const HOLD_MAX_FORCE = 9;
+const HOLD_ROTATION_GAIN = 7;
+const HOLD_MAX_ANGULAR_SPEED = 2.1;
 const REST_LINEAR_SPEED = 0.17;
 const REST_ANGULAR_SPEED = 0.32;
 const REST_CONFIRM_MS = 700;
@@ -31,16 +35,16 @@ export class InteractionController {
 		this.grabOffset = new THREE.Vector3();
 		this.grabPoint = new THREE.Vector3();
 		this.nextPosition = new THREE.Vector3();
-		this.frameVelocity = new THREE.Vector3();
-		this.dragVelocity = new THREE.Vector3();
-		this.dragAngularVelocity = new THREE.Vector3();
 		this.grabRotationOffset = new THREE.Quaternion();
 		this.nextQuaternion = new THREE.Quaternion();
-		this.previousHeldQuaternion = new THREE.Quaternion();
-		this.rotationDeltaQuaternion = new THREE.Quaternion();
-		this.rotationAxis = new THREE.Vector3();
+		this.holdTargetPosition = new THREE.Vector3();
+		this.holdTargetQuaternion = new THREE.Quaternion();
+		this.rotationErrorQuaternion = new THREE.Quaternion();
+		this.holdTargetReady = false;
 		this.lastDragTime = 0;
 		this.hoveredPieceId = null;
+		this.preStepHandler = () => this.#applyHoldMotor();
+		this.physicsWorld.addEventListener('preStep', this.preStepHandler);
 	}
 
 	update(handSnapshots, now) {
@@ -169,14 +173,14 @@ export class InteractionController {
 		hand.ray.at(THREE.MathUtils.clamp(hit.distance, LAB_CONFIG.grabDistanceMin, LAB_CONFIG.grabDistanceMax), this.grabPoint);
 		this.state.dragDistance = this.grabPoint.distanceTo(hand.ray.origin);
 		this.grabOffset.set(piece.body.position.x, piece.body.position.y, piece.body.position.z).sub(this.grabPoint);
-		this.previousHeldQuaternion.set(piece.body.quaternion.x, piece.body.quaternion.y, piece.body.quaternion.z, piece.body.quaternion.w);
-		this.dragAngularVelocity.set(0, 0, 0);
+		this.holdTargetPosition.set(piece.body.position.x, piece.body.position.y, piece.body.position.z);
+		this.holdTargetQuaternion.set(piece.body.quaternion.x, piece.body.quaternion.y, piece.body.quaternion.z, piece.body.quaternion.w);
+		this.holdTargetReady = true;
 		if (hand.handOrientation) {
-			this.grabRotationOffset.copy(hand.handOrientation).invert().multiply(this.previousHeldQuaternion);
+			this.grabRotationOffset.copy(hand.handOrientation).invert().multiply(this.holdTargetQuaternion);
 		} else {
 			this.grabRotationOffset.identity();
 		}
-		this.dragVelocity.set(0, 0, 0);
 		this.lastDragTime = now;
 		piece.material.emissive.set('#718d62');
 		setMessage(this.state, `${piece.name} sujeta. Muévela y suéltala para probar la gravedad y el rebote.`, 'info', now);
@@ -192,25 +196,54 @@ export class InteractionController {
 		this.#keepHeldPieceAboveTables(piece);
 		const deltaSeconds = (now - this.lastDragTime) / 1000;
 		const safeDeltaSeconds = THREE.MathUtils.clamp(deltaSeconds, 1 / 120, 0.05);
-		this.#moveHeldRotation(piece, hand, deltaSeconds);
-		// Servo de velocidad: impulsa el cuerpo hacia la mano sin teletransportarlo.
-		// Las paredes y mesas pueden detenerlo mediante el solver físico.
-		this.frameVelocity.set(
-			this.nextPosition.x - piece.body.position.x,
-			this.nextPosition.y - piece.body.position.y,
-			this.nextPosition.z - piece.body.position.z
-		).multiplyScalar(1 / safeDeltaSeconds).clampLength(0, HELD_LINEAR_SPEED_LIMIT);
-		this.dragVelocity.copy(this.frameVelocity);
-		piece.body.velocity.set(this.dragVelocity.x, this.dragVelocity.y, this.dragVelocity.z);
+		const filterAlpha = 1 - Math.exp(-HOLD_TARGET_FILTER_RATE * safeDeltaSeconds);
+		this.holdTargetPosition.lerp(this.nextPosition, filterAlpha);
+		this.#moveHeldRotation(hand, safeDeltaSeconds);
 		piece.body.wakeUp();
 		piece.body.aabbNeedsUpdate = true;
 		this.lastDragTime = now;
+	}
+
+	#applyHoldMotor() {
+		if (!this.holdTargetReady || !this.state.selectedPieceId) return;
+		const piece = this.state.pieces.find(item => item.id === this.state.selectedPieceId);
+		if (!piece || piece.status !== 'held') return;
+		const body = piece.body;
+		const mass = Math.max(body.mass, 0.05);
+		const damping = 2 * Math.sqrt(HOLD_SPRING_STIFFNESS * mass);
+		const force = new CANNON.Vec3(
+			HOLD_SPRING_STIFFNESS * (this.holdTargetPosition.x - body.position.x) - damping * body.velocity.x,
+			HOLD_SPRING_STIFFNESS * (this.holdTargetPosition.y - body.position.y) - damping * body.velocity.y + mass * 9.82,
+			HOLD_SPRING_STIFFNESS * (this.holdTargetPosition.z - body.position.z) - damping * body.velocity.z
+		);
+		limitBodyVector(force, HOLD_MAX_FORCE);
+		// Sin punto de aplicación: la fuerza pasa por el centro y no añade torque accidental.
+		body.applyForce(force);
+
+		const currentRotation = new THREE.Quaternion(body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w);
+		this.rotationErrorQuaternion.copy(this.holdTargetQuaternion).multiply(currentRotation.invert()).normalize();
+		if (this.rotationErrorQuaternion.w < 0) this.rotationErrorQuaternion.set(
+			-this.rotationErrorQuaternion.x, -this.rotationErrorQuaternion.y,
+			-this.rotationErrorQuaternion.z, -this.rotationErrorQuaternion.w
+		);
+		const vectorLength = Math.hypot(this.rotationErrorQuaternion.x, this.rotationErrorQuaternion.y, this.rotationErrorQuaternion.z);
+		if (vectorLength > 0.0001) {
+			const angle = 2 * Math.atan2(vectorLength, this.rotationErrorQuaternion.w);
+			const desiredSpeed = Math.min(HOLD_MAX_ANGULAR_SPEED, angle * HOLD_ROTATION_GAIN);
+			const blend = 0.14;
+			body.angularVelocity.x += (this.rotationErrorQuaternion.x / vectorLength * desiredSpeed - body.angularVelocity.x) * blend;
+			body.angularVelocity.y += (this.rotationErrorQuaternion.y / vectorLength * desiredSpeed - body.angularVelocity.y) * blend;
+			body.angularVelocity.z += (this.rotationErrorQuaternion.z / vectorLength * desiredSpeed - body.angularVelocity.z) * blend;
+		} else {
+			body.angularVelocity.scale(0.86, body.angularVelocity);
+		}
 	}
 
 	#releaseSelected(now) {
 		const piece = this.state.pieces.find(item => item.id === this.state.selectedPieceId);
 		this.state.selectedPieceId = null;
 		this.state.selectedBy = null;
+		this.holdTargetReady = false;
 		if (!piece || piece.classified) return;
 		this.#setBodyType(piece.body, CANNON.Body.DYNAMIC, piece.massKg);
 		limitBodyVector(piece.body.velocity, THROW_SPEED_LIMIT);
@@ -237,6 +270,7 @@ export class InteractionController {
 		}
 		this.state.selectedPieceId = null;
 		this.state.selectedBy = null;
+		this.holdTargetReady = false;
 	}
 
 	checkWrongBinSettling(now) {
@@ -349,41 +383,16 @@ export class InteractionController {
 		}
 	}
 
-	#moveHeldRotation(piece, hand, deltaSeconds) {
-		if (!hand.handOrientation) {
-			piece.body.angularVelocity.set(0, 0, 0);
-			this.dragAngularVelocity.set(0, 0, 0);
-			return;
-		}
+	#moveHeldRotation(hand, deltaSeconds) {
+		if (!hand.handOrientation) return;
 		this.nextQuaternion.copy(hand.handOrientation).multiply(this.grabRotationOffset).normalize();
-		if (deltaSeconds > 0 && deltaSeconds <= 0.1) {
-			this.previousHeldQuaternion.set(piece.body.quaternion.x, piece.body.quaternion.y, piece.body.quaternion.z, piece.body.quaternion.w);
-			this.rotationDeltaQuaternion.copy(this.previousHeldQuaternion).invert().multiply(this.nextQuaternion).normalize();
-			if (this.rotationDeltaQuaternion.w < 0) {
-				this.rotationDeltaQuaternion.set(
-					-this.rotationDeltaQuaternion.x,
-					-this.rotationDeltaQuaternion.y,
-					-this.rotationDeltaQuaternion.z,
-					-this.rotationDeltaQuaternion.w
-				);
-			}
-			const halfAngle = Math.acos(THREE.MathUtils.clamp(this.rotationDeltaQuaternion.w, -1, 1));
-			const sinHalfAngle = Math.sin(halfAngle);
-			if (sinHalfAngle > 0.0001) {
-				this.rotationAxis.set(
-					this.rotationDeltaQuaternion.x / sinHalfAngle,
-					this.rotationDeltaQuaternion.y / sinHalfAngle,
-					this.rotationDeltaQuaternion.z / sinHalfAngle
-				).multiplyScalar((halfAngle * 2) / deltaSeconds);
-				this.dragAngularVelocity.copy(this.rotationAxis).clampLength(0, THROW_ANGULAR_SPEED_LIMIT);
-			} else {
-				this.dragAngularVelocity.set(0, 0, 0);
-			}
-		} else {
-			this.dragAngularVelocity.set(0, 0, 0);
-		}
-		piece.body.angularVelocity.set(this.dragAngularVelocity.x, this.dragAngularVelocity.y, this.dragAngularVelocity.z);
-		piece.body.aabbNeedsUpdate = true;
+		const alpha = 1 - Math.exp(-HOLD_TARGET_FILTER_RATE * deltaSeconds);
+		this.holdTargetQuaternion.slerp(this.nextQuaternion, alpha).normalize();
+	}
+
+	dispose() {
+		this.physicsWorld.removeEventListener('preStep', this.preStepHandler);
+		this.holdTargetReady = false;
 	}
 
 	#setBodyType(body, type, mass) {

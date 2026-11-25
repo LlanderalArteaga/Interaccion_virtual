@@ -155,6 +155,7 @@ function disposeApp() {
 	if (app?.renderer.xr.getSession()) app.renderer.xr.getSession().end().catch(() => {});
 	sessionControls?.dispose();
 	handTracking?.dispose();
+	interaction?.dispose();
 	panel?.dispose();
 	celebration?.dispose();
 	elements.resetButton?.removeEventListener('click', landingResetHandler);
