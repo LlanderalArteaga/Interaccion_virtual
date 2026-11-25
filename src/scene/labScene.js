@@ -13,6 +13,8 @@ import {
 
 export const TABLETOP_Y = 0.75;
 const TABLE_SIZE = 0.68;
+const ROOM_SIZE = 7.2;
+const ROOM_HALF_SIZE = ROOM_SIZE / 2;
 const OBJECT_MASS_KG = 0.18;
 const CATEGORY_SPECS = Object.freeze([
 	{ id: 'cube', name: 'CUBO', color: 0xe7a36d, geometry: () => new THREE.BoxGeometry(0.13, 0.13, 0.13), shape: () => new CANNON.Box(new CANNON.Vec3(0.065, 0.065, 0.065)), halfHeight: 0.065, radius: 0.092 },
@@ -22,11 +24,11 @@ const CATEGORY_SPECS = Object.freeze([
 ]);
 
 const STATIONS = Object.freeze([
-	// Cuatro mesas alineadas de izquierda a derecha, dentro del alcance frontal.
-	{ id: 'row-1', x: -1.38, z: -1.18, rotation: 0 },
-	{ id: 'row-2', x: -0.46, z: -1.18, rotation: 0 },
-	{ id: 'row-3', x: 0.46, z: -1.18, rotation: 0 },
-	{ id: 'row-4', x: 1.38, z: -1.18, rotation: 0 }
+	// En arco delante del punto inicial: dos mesas a cada lado y pasillo libre al centro.
+	{ id: 'front-left', x: -0.98, z: -1.18, rotation: -0.18 },
+	{ id: 'near-left', x: -0.82, z: -0.30, rotation: -0.12 },
+	{ id: 'near-right', x: 0.82, z: -0.30, rotation: 0.12 },
+	{ id: 'front-right', x: 0.98, z: -1.18, rotation: 0.18 }
 ]);
 
 const OBJECT_SLOTS = Object.freeze([
@@ -39,7 +41,7 @@ export function createLabScene(previewElement) {
 	const scene = new THREE.Scene();
 	// Ambiente opaco creado en Three.js: no usa cámara ni passthrough.
 	scene.background = new THREE.Color('#526b68');
-	scene.fog = new THREE.Fog('#526b68', 7, 13);
+	scene.fog = new THREE.Fog('#526b68', 10, 19);
 	const camera = new THREE.PerspectiveCamera(54, 1, 0.05, 18);
 	camera.position.set(0.1, 1.6, 2.4);
 	camera.lookAt(0.05, 0.7, -0.9);
@@ -123,7 +125,7 @@ function createPhysicsMaterials(world) {
 
 function createRoom(scene, world, surfaceMaterial) {
 	const floor = new THREE.Mesh(
-		new THREE.PlaneGeometry(5, 5),
+		new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
 		new THREE.MeshStandardMaterial({ color: '#405b58', roughness: 0.94 })
 	);
 	floor.rotation.x = -Math.PI / 2;
@@ -135,16 +137,16 @@ function createRoom(scene, world, surfaceMaterial) {
 	floorBody.position.y = -0.01;
 	world.addBody(floorBody);
 
-	const grid = new THREE.GridHelper(5, 25, '#9ab9a8', '#627f76');
+	const grid = new THREE.GridHelper(ROOM_SIZE, 36, '#9ab9a8', '#627f76');
 	grid.position.y = 0.003;
 	grid.material.transparent = true;
 	grid.material.opacity = 0.28;
 	scene.add(grid);
 	const wallMaterial = new THREE.MeshStandardMaterial({ color: '#536d66', roughness: 0.9, side: THREE.DoubleSide });
-	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: 0, y: 1.35, z: -2.5, width: 5, height: 2.7, horizontal: true });
-	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: 0, y: 1.35, z: 2.5, width: 5, height: 2.7, horizontal: true });
-	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: -2.5, y: 1.35, z: 0, width: 5, height: 2.7, horizontal: false });
-	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: 2.5, y: 1.35, z: 0, width: 5, height: 2.7, horizontal: false });
+	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: 0, y: 1.35, z: -ROOM_HALF_SIZE, width: ROOM_SIZE, height: 2.7, horizontal: true });
+	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: 0, y: 1.35, z: ROOM_HALF_SIZE, width: ROOM_SIZE, height: 2.7, horizontal: true });
+	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: -ROOM_HALF_SIZE, y: 1.35, z: 0, width: ROOM_SIZE, height: 2.7, horizontal: false });
+	addRoomWall(scene, world, wallMaterial, surfaceMaterial, { x: ROOM_HALF_SIZE, y: 1.35, z: 0, width: ROOM_SIZE, height: 2.7, horizontal: false });
 	addMakerLabDecor(scene);
 }
 
@@ -154,8 +156,8 @@ function addMakerLabDecor(scene) {
 	const frame = new THREE.MeshStandardMaterial({ color: '#263f3e', roughness: 0.55, metalness: 0.18 });
 	const glass = new THREE.MeshBasicMaterial({ color: '#a0d9cd' });
 	const glassShade = new THREE.MeshBasicMaterial({ color: '#81bcb6' });
-	const backWallZ = -2.435;
-	for (const centerX of [-1.55, 0, 1.55]) {
+	const backWallZ = -ROOM_HALF_SIZE + 0.065;
+	for (const centerX of [-2.15, 0, 2.15]) {
 		const windowGroup = new THREE.Group();
 		windowGroup.position.set(centerX, 1.88, backWallZ);
 		const outer = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.78, 0.055), frame);
@@ -174,7 +176,7 @@ function addMakerLabDecor(scene) {
 	}
 
 	const ceiling = new THREE.Mesh(
-		new THREE.PlaneGeometry(5, 5),
+		new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
 		new THREE.MeshStandardMaterial({ color: '#718780', roughness: 0.96, side: THREE.DoubleSide })
 	);
 	ceiling.rotation.x = Math.PI / 2;
@@ -182,7 +184,7 @@ function addMakerLabDecor(scene) {
 	scene.add(ceiling);
 
 	const lampMaterial = new THREE.MeshBasicMaterial({ color: '#ffe9b5' });
-	for (const x of [-1.2, 0.35, 1.65]) {
+	for (const x of [-2.0, 0, 2.0]) {
 		const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.025, 0.20), lampMaterial);
 		lamp.position.set(x, 2.68, -0.75);
 		scene.add(lamp);
@@ -236,8 +238,9 @@ function createStations(scene, world, surfaceMaterial) {
 
 function createBins(scene, world, surfaceMaterial) {
 	const positions = [
-		{ x: -0.50, z: -0.27 }, { x: 0.02, z: -0.27 },
-		{ x: 0.54, z: -0.27 }, { x: 1.00, z: -0.27 }
+		// Detrás del usuario: basta girarse para depositar las figuras.
+		{ x: -0.90, z: 0.78 }, { x: -0.30, z: 0.78 },
+		{ x: 0.30, z: 0.78 }, { x: 0.90, z: 0.78 }
 	];
 	return CATEGORY_SPECS.map((category, index) => {
 		const position = positions[index];

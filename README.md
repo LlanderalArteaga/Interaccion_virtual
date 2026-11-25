@@ -11,9 +11,9 @@ Laboratorio universitario de realidad virtual para clasificar figuras geométric
 
 La práctica permite explorar conceptos de interacción espacial y física 3D en una actividad concreta. El alumno reconoce cuatro clases de cuerpos, los manipula con las manos y observa la diferencia entre soltar una figura dentro de su recipiente correcto, colocarla en uno equivocado o dejarla caer fuera.
 
-El reto tiene **20 figuras**: cinco cubos, cinco esferas, cinco pirámides cuadradas y cinco prismas hexagonales. Se distribuyen en **cuatro mesas alineadas en una fila**, con cinco piezas cada una. Hay un recipiente abierto por categoría. El panel tridimensional muestra progreso, tiempo, intentos, errores, precisión y avance por categoría.
+El reto tiene **20 figuras**: cinco cubos, cinco esferas, cinco pirámides cuadradas y cinco prismas hexagonales. Se distribuyen en **cuatro mesas en arco frente al punto inicial**, dos a cada lado, con cinco piezas cada una. Los cuatro recipientes quedan detrás del usuario para que pueda girarse y depositarlas. El panel tridimensional muestra progreso, tiempo, intentos, errores, precisión y avance por categoría.
 
-La ambientación representa un laboratorio universitario de prototipado. Sus paredes, piso, ventanales y luminarias se generan con geometría de Three.js. El escenario es opaco y virtual: no usa cámara, passthrough ni realidad aumentada o mixta.
+La ambientación representa un laboratorio universitario de prototipado de **7.2 × 7.2 m**. Sus paredes, piso, ventanales y luminarias se generan con geometría de Three.js. El escenario es opaco y virtual: no usa cámara, passthrough ni realidad aumentada o mixta. Este tamaño virtual no modifica el límite Guardian del visor; el área segura física se configura en Meta Quest.
 
 ## Cómo se usa
 
